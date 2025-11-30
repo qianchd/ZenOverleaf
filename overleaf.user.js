@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Overleaf Zen Mode
 // @namespace    http://tampermonkey.net/
-// @version      0.2.0
+// @version      0.2.1
 // @description  Zen mode for Overleaf (Toggle Sidebar, Header, Fullscreen)
 // @author       Chengde Qian
 // @match        https://www.overleaf.com/*
@@ -14,7 +14,6 @@
 
     // --- Configuration ---
     const BUTTON_CLASS = 'ol-zen-button';
-    const TOOLBAR_SELECTOR = '.toolbar-editor-right'; // More stable selector for the top right toolbar
     // Note: Overleaf classes change often. If buttons don't appear, check the TOOLBAR_SELECTOR.
 
     // --- CSS Styles ---
@@ -47,7 +46,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: color 0.2s;
+            transition: color 0.2s, background-color 0.2s;
         }
         .${BUTTON_CLASS}:hover {
             color: #000;
@@ -62,19 +61,24 @@
 
     // --- Helper Functions ---
 
-    // Toggle display property between 'none' and 'flex' (or provided type)
     function toggleDisplay(selector, displayType = 'flex') {
         const el = document.querySelector(selector);
         if (!el) return;
         el.style.display = (el.style.display === 'none') ? displayType : 'none';
     }
 
-    // Toggle fullscreen safely
-    function toggleFullScreen(action) {
-        const doc = window.document;
-        const docEl = doc.documentElement; // Target the whole page
+    function isFullscreen() {
+        return document.fullscreenElement ||
+               document.mozFullScreenElement ||
+               document.webkitFullscreenElement ||
+               document.msFullscreenElement;
+    }
 
-        if (action === 'enter') {
+    function toggleFullScreen() {
+        const doc = window.document;
+        const docEl = doc.documentElement;
+
+        if (!isFullscreen()) {
             const request = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
             if (request) request.call(docEl);
         } else {
@@ -83,20 +87,18 @@
         }
     }
 
-    // Factory to create buttons easily
     function createButton(text, title, onClick) {
         const btn = document.createElement('button');
         btn.textContent = text;
-        btn.title = title; // Tooltip
+        btn.title = title;
         btn.className = BUTTON_CLASS;
         btn.onclick = (e) => {
-            e.preventDefault(); // Prevent form submission triggers
-            onClick();
+            e.preventDefault();
+            onClick(btn); // Pass button instance in case we want to change text later
         };
         return btn;
     }
 
-    // Wait for the toolbar to exist before injecting buttons
     function waitForElement(selector, callback) {
         const el = document.querySelector(selector);
         if (el) {
@@ -110,47 +112,40 @@
     function init() {
         GM_addStyle(customCSS);
 
-        // 1. Remove Lint Gutter (as per original script)
         const lintGutter = document.querySelector(".cm-gutter-lint");
         if (lintGutter) lintGutter.remove();
 
-        // 2. Hide specific Overleaf elements initially if needed
-        // (Original script hid a specific toolbar item immediately)
         const premiumBadge = document.querySelector("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div:nth-child(3)");
         if (premiumBadge) premiumBadge.style.display = "none";
 
-        // 3. Define Buttons
         const buttons = [
-            // S: Sidebar (File tree & Review panel)
+            // S: Sidebar
             createButton("S", "Toggle Sidebar", () => {
-                toggleDisplay("#ide-root > div.ide-redesign-main > div.ide-redesign-body > div > nav"); // File tree
-                toggleDisplay("#review-panel-inner"); // Review panel
+                toggleDisplay("#ide-root > div.ide-redesign-main > div.ide-redesign-body > div > nav");
+                toggleDisplay("#review-panel-inner");
             }),
 
-            // L: Line Numbers / Gutter
+            // L: Line Numbers
             createButton("L", "Toggle Line Numbers", () => {
                 toggleDisplay(".cm-gutters");
-                // Also hide the chat/history panel if open
                 const panel = document.querySelector("#panel-outer-main > div > div:nth-child(2) > div");
                 if (panel) panel.style.display = "none";
             }),
 
-            // H: Header / Top Bar
+            // H: Header
             createButton("H", "Toggle Header", () => {
                 toggleDisplay(".ide-redesign-toolbar");
             }),
 
-            // F: Fullscreen Enter
-            createButton("F", "Enter Fullscreen", () => {
-                toggleFullScreen('enter');
-            }),
-
-            // E: Fullscreen Exit
-            createButton("E", "Exit Fullscreen", () => {
-                toggleFullScreen('exit');
+            // F: Fullscreen Toggle (Merged)
+            createButton("F", "Toggle Fullscreen", (btn) => {
+                toggleFullScreen();
+                // Optional: visual feedback could be added here,
+                // but standard fullscreen UI usually suffices.
             })
         ];
 
+        // Inject Buttons
         // 4. Inject Buttons into the Toolbar
         // We look for the editor toolbar. Overleaf classes: 'toolbar-editor-right' or 'toolbar-editor'
         const toolbar = document.querySelector('.toolbar-editor') || document.querySelector('.toolbar-header');
@@ -165,7 +160,6 @@
         }
     }
 
-    // Start waiting for the UI to load
     waitForElement('.toolbar-editor', init);
 
 })();
