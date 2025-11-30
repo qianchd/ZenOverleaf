@@ -14,7 +14,8 @@ Zenmode for online tex editors, including overleaf and texpage.
 
 - Header hiding
 
-<img width="800" alt="image" src="https://user-images.githubusercontent.com/48825214/233638974-bd031672-7640-4966-b857-0911a0344df3.png">
+<img width="1259" height="839" alt="image" src="https://github.com/user-attachments/assets/3f1b0f3f-0c71-4344-a3ef-da58bb94d41b" />
+
 
 Compare with the original theme:)
 <img width="800" alt="image" src="https://user-images.githubusercontent.com/48825214/233640047-89fd90bd-d493-4f2f-b655-66fbf1b59877.png">
