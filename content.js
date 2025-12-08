@@ -90,14 +90,12 @@
         // --- Core Mount Logic ---
         function mountButtons() {
             // 1. Locate Toolbar
-            console.log("mountOnce");
             const toolbar = document.querySelector('.toolbar-editor') || document.querySelector('.toolbar-header');
             if (!toolbar) return;
 
             // 2. Efficiency Check: Do our buttons already exist?
             // If they do, we stop immediately to avoid duplication.
             if (toolbar.querySelector(`.${BUTTON_CLASS}`)) return;
-            console.log("mountOnce222");
 
             // 3. Inject Buttons
             const insert_loc = document.querySelector("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div.ol-cm-toolbar-button-group.ol-cm-toolbar-end");
