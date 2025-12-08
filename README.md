@@ -1,5 +1,10 @@
-# Zenmode-OnlineTeX (ZenOverleaf)
+# Zenmode for OnlineTeX (ZenOverleaf)
+
 Zenmode for online tex editors, including overleaf and texpage.
+
+<img width="200" alt="image" src="https://github.com/qianchd/ZenOverleaf/blob/main/icon.png" />
+
+
 
 ## Installation
 
