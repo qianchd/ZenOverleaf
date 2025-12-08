@@ -3,13 +3,13 @@ Zenmode for online tex editors, including overleaf and texpage.
 
 ## Installation
 
-### tampermonkey
+### Tampermonkey
 - Install the [tampermonkey](https://tampermonkey.net) extension in the Chromium-based or Firefox browser. The [kiwi browser](https://kiwibrowser.com/) is recommended for iPad and Android tablets.
-- Copy the js script to the tampermonkey extension.
+- Copy the js script in the tampermonkey folder to the tampermonkey extension.
 
 ### Chromium Extension
 
-- Download the `.crx` file in the release page
+- Download the [ZenOverleaf-1.1.0.crx](https://github.com/qianchd/Overleaf-zen/releases/download/1.1.0/ZenOverleaf-1.1.0.crx) file in the release page.
 - drag the file into your browser.
 
 ## Features
