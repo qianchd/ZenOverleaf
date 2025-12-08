@@ -77,46 +77,83 @@
             }
         }
 
-        function createButton(content, title, onClick) {
+        function createButton(content, title, id, onClick) {
             const btn = document.createElement('button');
             btn.innerHTML = content;
             btn.title = title;
+            btn.id = id;
             btn.className = BUTTON_CLASS;
             btn.onclick = (e) => { e.preventDefault(); onClick(btn); };
             return btn;
         }
 
-        // Hide Premium Badge
-        const premiumBadges = document.querySelectorAll("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div:nth-child(n+3):nth-child(-n+7)");
-        premiumBadges.forEach(el => {
-            el.style.setProperty('display', 'none', 'important');
-        });
+        // --- Core Mount Logic ---
+        function mountButtons() {
+            // 1. Locate Toolbar
+            console.log("mountOnce");
+            const toolbar = document.querySelector('.toolbar-editor') || document.querySelector('.toolbar-header');
+            if (!toolbar) return;
 
-        const buttons = [
-            createButton(ICONS.SIDEBAR, "Toggle Sidebar", () => {
-                toggleDisplay("#ide-root > div.ide-redesign-main > div.ide-redesign-body > div > nav");
-                toggleDisplay("#review-panel-inner");
-            }),
-            createButton(ICONS.LINENUMS, "Toggle Gutter", () => {
-                toggleDisplay(".cm-gutters");
-                toggleDisplay(".cm-gutter-lint");
-                const panel = document.querySelector("#panel-outer-main > div > div:nth-child(2) > div");
-                if (panel) panel.style.display = (panel.style.display === 'none' ? 'block' : 'none');
-            }),
-            createButton(ICONS.HEADER, "Toggle Header", () => {
-                toggleDisplay(".ide-redesign-toolbar");
-            }),
-            createButton(ICONS.FULLSCREEN, "Toggle Fullscreen", () => {
-                toggleFullScreen();
-            })
-        ];
+            // 2. Efficiency Check: Do our buttons already exist?
+            // If they do, we stop immediately to avoid duplication.
+            if (toolbar.querySelector(`.${BUTTON_CLASS}`)) return;
+            console.log("mountOnce222");
 
-        const toolbar = document.querySelector('.toolbar-editor') || document.querySelector('.toolbar-header');
-        const insert_loc = document.querySelector("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div.ol-cm-toolbar-button-group.ol-cm-toolbar-end");
+            // 3. Inject Buttons
+            const insert_loc = document.querySelector("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div.ol-cm-toolbar-button-group.ol-cm-toolbar-end");
 
-        if (toolbar) {
+            // Clean up unwanted elements
+            const premiumBadges = document.querySelectorAll("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div:nth-child(n+3):nth-child(-n+7)");
+            premiumBadges.forEach(el => {
+                el.style.setProperty('display', 'none', 'important');
+            });
+
+            const buttons = [
+                createButton(ICONS.SIDEBAR, "Toggle Sidebar", "btnSbar", () => {
+                    toggleDisplay("#ide-root > div.ide-redesign-main > div.ide-redesign-body > div > nav");
+                    toggleDisplay("#review-panel-inner");
+                }),
+                createButton(ICONS.LINENUMS, "Toggle Gutter", "btnGutter", () => {
+                    toggleDisplay(".cm-gutters");
+                    toggleDisplay(".cm-gutter-lint");
+                }),
+                createButton(ICONS.HEADER, "Toggle Header", "btnHeader", () => {
+                    toggleDisplay(".ide-redesign-toolbar");
+                }),
+                createButton(ICONS.FULLSCREEN, "Toggle Fullscreen", "btnFull", () => {
+                    toggleFullScreen();
+                })
+            ];
+
             buttons.forEach(btn => toolbar.insertBefore(btn, insert_loc));
         }
+
+        // --- 3. Debounce Utility (核心：防抖函数) ---
+        // 只有当 DOM 停止变化 delay 毫秒后，fn 才会执行
+        function debounce(fn, delay) {
+            let timer;
+            if(delay < 500) delay = 2000;
+            return function(...args) {
+                clearTimeout(timer);
+                timer = setTimeout(()=>{fn.apply(this, args)}, delay);
+            };
+        }
+        const debouncedMount = debounce(mountButtons, 3000);
+
+
+        // --- Observer: Watch for UI Updates ---
+        const observer = new MutationObserver((mutations) => {
+            debouncedMount();
+        });
+        // const observer = new MutationObserver((mutations) => {
+        //     waitForElement('#ide-redesign-panel-source-editor > div > div', mountButtons)
+        // });
+        const targetNode = document.querySelector("#ide-redesign-file-tree > div > div.file-tree-inner");
+        // Start watching the body for changes
+        observer.observe(targetNode, { childList: true, subtree: true });
+
+        mountButtons()
+        debouncedMount();
     }
 
     // ==========================================

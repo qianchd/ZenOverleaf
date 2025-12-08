@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Overleaf Zen Mode
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Zen mode for Overleaf (Toggle Sidebar, Header, Fullscreen) with Scroll Fix
 // @author       You
 // @match        https://www.overleaf.com/*
@@ -36,7 +36,7 @@
     `;
     GM_addStyle(customCSS);
 
-    // --- Constants & Helpers ---
+    // --- 2. Shared Constants ---
     const SVG_ATTRS = 'width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"';
     const ICONS = {
         SIDEBAR: `<svg ${SVG_ATTRS}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>`,
@@ -45,18 +45,22 @@
         FULLSCREEN: `<svg ${SVG_ATTRS}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`
     };
 
+    // --- 3. Helpers ---
     function isFullscreen() {
         return document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
     }
 
     function waitForElement(selector, callback) {
         const el = document.querySelector(selector);
-        if (el) callback(el);
-        else setTimeout(() => waitForElement(selector, callback), 500);
+        if (el) {
+            callback(el);
+        } else {
+            setTimeout(() => waitForElement(selector, callback), 500);
+        }
     }
 
-    // --- Main Logic ---
-    function init() {
+    // --- 4. Main Logic ---
+    function initOverleaf() {
         const BUTTON_CLASS = 'ol-zen-button';
 
         // Helper: Find the PDF container and force it to scroll/display correctly
@@ -72,7 +76,6 @@
         function triggerResizePulse() {
             let count = 0;
             const interval = setInterval(() => {
-                // if (isFullscreen()) fixPdfScroll();
                 window.dispatchEvent(new Event('resize', { bubbles: true, cancelable: true }));
                 count++;
                 if (count > 6) clearInterval(interval);
@@ -106,48 +109,84 @@
             }
         }
 
-        function createButton(content, title, onClick) {
+        function createButton(content, title, id, onClick) {
             const btn = document.createElement('button');
             btn.innerHTML = content;
             btn.title = title;
+            btn.id = id;
             btn.className = BUTTON_CLASS;
             btn.onclick = (e) => { e.preventDefault(); onClick(btn); };
             return btn;
         }
 
-        // Hide Premium Badge
-        const premiumBadges = document.querySelectorAll("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div:nth-child(n+3):nth-child(-n+7)");
-        premiumBadges.forEach(el => {
-            el.style.setProperty('display', 'none', 'important');
+        // --- Core Mount Logic ---
+        function mountButtons() {
+            // 1. Locate Toolbar
+            const toolbar = document.querySelector('.toolbar-editor') || document.querySelector('.toolbar-header');
+            if (!toolbar) return;
+
+            // 2. Efficiency Check: Do our buttons already exist?
+            if (toolbar.querySelector(`.${BUTTON_CLASS}`)) return;
+
+
+            // Clean up unwanted elements (Premium Badges)
+            const premiumBadges = document.querySelectorAll("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div:nth-child(n+3):nth-child(-n+7)");
+            premiumBadges.forEach(el => {
+                el.style.setProperty('display', 'none', 'important');
+            });
+
+            // 3. Inject Buttons
+            const buttons = [
+                createButton(ICONS.SIDEBAR, "Toggle Sidebar", "btnSbar", () => {
+                    toggleDisplay("#ide-root > div.ide-redesign-main > div.ide-redesign-body > div > nav");
+                    toggleDisplay("#review-panel-inner");
+                }),
+                createButton(ICONS.LINENUMS, "Toggle Gutter", "btnGutter", () => {
+                    toggleDisplay(".cm-gutters");
+                    toggleDisplay(".cm-gutter-lint");
+                }),
+                createButton(ICONS.HEADER, "Toggle Header", "btnHeader", () => {
+                    toggleDisplay(".ide-redesign-toolbar");
+                }),
+                createButton(ICONS.FULLSCREEN, "Toggle Fullscreen", "btnFull", () => {
+                    toggleFullScreen();
+                })
+            ];
+            const insert_loc = document.querySelector("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div.ol-cm-toolbar-button-group.ol-cm-toolbar-end");
+            buttons.forEach(btn => toolbar.insertBefore(btn, insert_loc));
+            console.log("Overleaf Zen Mode: Buttons Mounted");
+        }
+
+        // --- Debounce Utility ---
+        function debounce(fn, delay) {
+            let timer;
+            if(delay < 500) delay = 2000;
+            return function(...args) {
+                clearTimeout(timer);
+                timer = setTimeout(()=>{fn.apply(this, args)}, delay);
+            };
+        }
+
+        // --- Observer Logic ---
+        const debouncedMount = debounce(mountButtons, 3000);
+
+        const observer = new MutationObserver((mutations) => {
+            debouncedMount();
         });
 
-        const buttons = [
-            createButton(ICONS.SIDEBAR, "Toggle Sidebar", () => {
-                toggleDisplay("#ide-root > div.ide-redesign-main > div.ide-redesign-body > div > nav");
-                toggleDisplay("#review-panel-inner");
-            }),
-            createButton(ICONS.LINENUMS, "Toggle Gutter", () => {
-                toggleDisplay(".cm-gutters");
-                toggleDisplay(".cm-gutter-lint");
-                const panel = document.querySelector("#panel-outer-main > div > div:nth-child(2) > div");
-                if (panel) panel.style.display = (panel.style.display === 'none' ? 'block' : 'none');
-            }),
-            createButton(ICONS.HEADER, "Toggle Header", () => {
-                toggleDisplay(".ide-redesign-toolbar");
-            }),
-            createButton(ICONS.FULLSCREEN, "Toggle Fullscreen", () => {
-                toggleFullScreen();
-            })
-        ];
+        const targetNode = document.querySelector("#ide-redesign-file-tree > div > div.file-tree-inner");
 
-        const toolbar = document.querySelector('.toolbar-editor') || document.querySelector('.toolbar-header');
-        const insert_loc = document.querySelector("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div.ol-cm-toolbar-button-group.ol-cm-toolbar-end");
+        // Use waitForElement to ensure the targetNode exists before observing
+        waitForElement("#ide-redesign-file-tree > div > div.file-tree-inner", (node) => {
+             observer.observe(node, { childList: true, subtree: true });
+        });
 
-        if (toolbar) {
-            buttons.forEach(btn => toolbar.insertBefore(btn, insert_loc));
-        }
+        // Run immediately
+        mountButtons();
+        debouncedMount();
     }
 
-    waitForElement('.toolbar-editor', init);
+    // Run when the toolbar is ready
+    waitForElement('.toolbar-editor', initOverleaf);
 
 })();
