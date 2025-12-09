@@ -4,9 +4,9 @@
   "version": "1.2.1",
   "description": "Zen mode for Overleaf and TexPage (Toggle Sidebar, Header, Fullscreen)",
   "icons": {
-    "16": "icon.png",
-    "48": "icon.png",
-    "128": "icon.png"
+    "32": "icon32.png",
+    "64": "icon64.png",
+    "128": "icon128.png"
   },
   "browser_specific_settings": {
     "gecko": {
