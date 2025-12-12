@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ZenOverleaf",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Zen mode for Overleaf and TexPage (Toggle Sidebar, Header, Fullscreen)",
   "icons": {
     "32": "icon.png",
