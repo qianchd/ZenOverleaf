@@ -65,9 +65,8 @@
 /* --- Git Sync Floating Panel --- */
 .ol-mygit-panel {
     position: fixed;
-    /* 50px 是 Overleaf 左侧 Rail 的大致宽度，确保面板不遮挡按钮 */
-    left: 50px;
-    /* 放在靠下的位置，或者根据个人喜好调整 top */
+    left: 50px; /* 50px: Approximately nearby the sidebar */
+    /* locate in the bottom */
     bottom: 20px;
     width: 300px;
     background: #fff;
@@ -77,7 +76,7 @@
     font-family: sans-serif;
     font-size: 13px;
     z-index: 10000;
-    display: none; /* 默认隐藏 */
+    display: none; /* none by default */
 }
 .ol-mygit-panel.open { display: block; animation: fadeIn 0.2s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
@@ -100,7 +99,6 @@
 .ol-mygit-status { margin-top: 10px; font-size: 11px; color: #666; word-break: break-all; min-height: 14px; text-align: center; }
 
 /* --- Git Sidebar Icon Fixes --- */
-/* 适配原生 Sidebar 的图标容器 */
 .ol-mygit-rail-icon-container {
     display: flex;
     align-items: center;
@@ -109,7 +107,6 @@
     height: 24px;
     margin: 0 auto;
 }
-/* 选中状态（模仿原生 .active 类） */
 a.ide-rail-tab-link.active .ol-mygit-rail-icon-container {
     color: #3b9c3b; /* Overleaf Green */
 }

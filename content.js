@@ -50,7 +50,7 @@
         function initGitPanel() {
             if (document.getElementById('ol-mygit-rail-link')) return;
 
-            // --- 1. 使用 DOM API 创建面板 (替代 innerHTML) ---
+            // --- 1. Create panel via DOM API (replace innerHTML) ---
             const panel = document.createElement('div');
             panel.className = 'ol-mygit-panel';
 
@@ -161,13 +161,13 @@
             const railWrapper = document.querySelector(sidebarSelector);
             if (railWrapper) railWrapper.appendChild(railLink);
 
-            // --- 状态管理 ---
+            // --- control states ---
             let isSyncing = false;
             let autoSyncTimer = null;
             const projectId = window.location.pathname.split('/')[2];
             const STORAGE_KEY_PROJECT = `ol_git_${projectId}`;
 
-            // --- 辅助函数 ---
+            // --- functions ---
             const updateStatus = (msg, color = 'black') => {
                 const el = document.getElementById('ol-mygit-status');
                 if(el) { el.textContent = msg; el.style.color = color; }
@@ -474,7 +474,7 @@
             const toolbar = document.querySelector('.toolbar-editor') || document.querySelector('.toolbar-header');
             if (!toolbar) return;
 
-            // 尝试初始化 Git Panel (如果还没初始化)
+            // Try to init git panel
             initGitPanel();
 
             if (toolbar.querySelector(`.${BUTTON_CLASS}`)) return;
@@ -560,18 +560,17 @@
         const debouncedMount = debounce(mountButtons, 500);
 
         const observer = new MutationObserver((mutations) => {
-            // FIX: 这里之前写成了 debouncedMountZen()，导致了 ReferenceError
             debouncedMount();
             initGitPanel();
         });
 
-        // 观察 body 或者文件树，确保 React 重绘时能重新挂载
-        const targetNode = document.querySelector("#ide-redesign-file-tree > div > div.file-tree-inner") || document.body;
+        // observe the tree-inner
+        const targetNode = document.querySelector("#ide-redesign-file-tree > div > div.file-tree-inner");
         if (targetNode) {
             observer.observe(targetNode, { childList: true, subtree: true });
         }
 
-        // 针对 Git Panel：等待侧边栏出现
+        // For Git Panel: wait until sidebar is done.
         waitForElement('.ide-rail-tabs-wrapper', () => {
             initGitPanel();
         });
@@ -584,7 +583,6 @@
     // LOGIC 2: TEXPAGE (Unchanged)
     // ==========================================
     function initTexPage() {
-        // ... (保持原有的 TexPage 代码不变) ...
         const SELECTORS = {
             TOOLBAR: '.editor-actions',
             HEADER: '.project-header',
