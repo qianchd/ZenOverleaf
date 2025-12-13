@@ -1,13 +1,16 @@
 {
   "manifest_version": 3,
   "name": "ZenOverleaf",
-  "version": "1.2.3",
-  "description": "Zen mode for Overleaf and TexPage (Toggle Sidebar, Header, Fullscreen)",
+  "version": "2.0.0",
+  "description": "Zen mode for Overleaf with Git Sync",
   "icons": {
     "32": "icon.png",
     "64": "icon.png",
     "128": "icon.png"
   },
+  "permissions": [
+    "storage"
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "zenoverleaf@github.com",
@@ -23,7 +26,13 @@
         "https://www.overleaf.com/*",
         "https://www.texpage.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "libs/isomorphic-git.min.js",
+        "libs/lightning-fs.min.js",
+        "libs/jszip.min.js",
+        "libs/isomorphic-git-http.min.js",
+        "content.js"
+      ],
       "css": ["styles.css"]
     }
   ]

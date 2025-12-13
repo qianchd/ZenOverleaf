@@ -60,3 +60,55 @@
 }
 
 :fullscreen { background-color: #fff; overflow-y: auto; }
+
+
+/* --- Git Sync Floating Panel --- */
+.ol-mygit-panel {
+    position: fixed;
+    /* 50px 是 Overleaf 左侧 Rail 的大致宽度，确保面板不遮挡按钮 */
+    left: 50px;
+    /* 放在靠下的位置，或者根据个人喜好调整 top */
+    bottom: 20px;
+    width: 300px;
+    background: #fff;
+    border: 1px solid #dcdde0;
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    font-family: sans-serif;
+    font-size: 13px;
+    z-index: 10000;
+    display: none; /* 默认隐藏 */
+}
+.ol-mygit-panel.open { display: block; animation: fadeIn 0.2s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+
+.ol-mygit-header {
+    padding: 12px; font-weight: bold; display: flex; justify-content: space-between;
+    align-items: center; color: #333; background: #f4f6f8;
+    border-bottom: 1px solid #dcdde0; border-radius: 4px 4px 0 0;
+}
+.ol-mygit-close { cursor: pointer; font-size: 18px; color: #999; line-height: 1; }
+.ol-mygit-close:hover { color: #333; }
+.ol-mygit-content { padding: 15px; }
+.ol-mygit-input-group { margin-bottom: 12px; }
+.ol-mygit-input-group label { display: block; margin-bottom: 4px; color: #555; font-size: 12px; font-weight: 600; }
+.ol-mygit-input { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; box-sizing: border-box; }
+.ol-mygit-input:focus { border-color: #3b9c3b; outline: none; }
+.ol-mygit-btn { width: 100%; padding: 8px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; font-size: 13px; }
+.ol-mygit-btn:hover { background-color: #218838; }
+.ol-mygit-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
+.ol-mygit-status { margin-top: 10px; font-size: 11px; color: #666; word-break: break-all; min-height: 14px; text-align: center; }
+
+/* --- Git Sidebar Icon Fixes --- */
+/* 适配原生 Sidebar 的图标容器 */
+.ol-mygit-rail-icon-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+}
+/* 选中状态（模仿原生 .active 类） */
+a.ide-rail-tab-link.active .ol-mygit-rail-icon-container {
+    color: #3b9c3b; /* Overleaf Green */
+}

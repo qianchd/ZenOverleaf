@@ -1,6 +1,6 @@
 <div align="center">
 
-## ✍️ ZenOverleaf: Switching to Zenmode on Overleaf and Texpage.
+## ✍️ ZenOverleaf: Switching to Zenmode on Overleaf and Texpage with Git Sync.
 
 </div>
 
@@ -17,11 +17,12 @@ ZenOverleaf transform Overleaf and TexPage into a focused, distraction-free writ
 
 **Key Features:**
 * **Private and Reliable:** ZenOverleaf does all the computation and modification within your own computer. It does not collect any personal data and does not link to *any* other websites and IPs.
+* **Git Backup (New feature since v2.0.0):** Support one-side backup to git remote repo (github, gitee, cnb.cool, ...), with the help of [`isomorphic-git`](https://github.com/isomorphic-git/isomorphic-git), a pure JavaScript reimplementation of git.
 * **Maximize Screen Real Estate:** Perfect for laptop users or split-screen workflows where every pixel counts.
-* **Toggle UI Elements:** Individually show or hide the file tree sidebar, the top header bar, and the line-number gutter.
-* **True Fullscreen:** One-click activation of browser-level fullscreen mode for deep work sessions.
-* **Dual Platform Support:** Works seamlessly on both **Overleaf** and **TexPage**.
-* **Native Integration:** The "Zen-class" buttons are styled to match the native toolbar of the editor, ensuring they look like they belong there.
+  * **Toggle UI Elements:** Individually show or hide the file tree sidebar, the top header bar, and the line-number gutter.
+  * **True Fullscreen:** One-click activation of browser-level fullscreen mode for deep work sessions.
+  * **Dual Platform Support:** Works seamlessly on both **Overleaf** and **TexPage**.
+  * **Native Integration:** The "Zen-class" buttons are styled to match the native toolbar of the editor, ensuring they look like they belong there.
 
 Whether you are drafting a thesis, a research paper, or a resume, ZenOverleaf helps you focus on what matters most: your content.
 
@@ -34,8 +35,7 @@ Whether you are drafting a thesis, a research paper, or a resume, ZenOverleaf he
 #### Chromium Extension
 
 - Download the crx file in the [release page](https://github.com/qianchd/ZenOverleaf/releases/latest).
-- Drag the file into your browser.
-- It takes 5$ to become a developer for chrome extension. So the official chrome-store version is temporarily unavailable.
+- It takes 5$ to become a developer for chrome extension. So the chrome-store version is temporarily unavailable.
 
 #### Firefox-based browsers
 
