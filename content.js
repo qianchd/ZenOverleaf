@@ -46,60 +46,112 @@
     function initOverleaf() {
         const BUTTON_CLASS = 'ol-zen-button';
 
-        // --- Git Sync Logic (Sidebar Integration) ---
         // --- Git Sync Logic (Smart Discovery Version) ---
         function initGitPanel() {
             if (document.getElementById('ol-mygit-rail-link')) return;
 
-            // UI Creation
+            // --- 1. 使用 DOM API 创建面板 (替代 innerHTML) ---
             const panel = document.createElement('div');
             panel.className = 'ol-mygit-panel';
-            panel.innerHTML = `
-                <div class="ol-mygit-header">
-                    <span style="display:flex;align-items:center;gap:6px">${ICONS.GIT || ICONS.MYGIT} GitHub/CNB Sync</span>
-                    <span class="ol-mygit-close" id="ol-mygit-close-btn">×</span>
-                </div>
-                <div class="ol-mygit-content">
-                    <div class="ol-mygit-input-group">
-                        <label>Repo URL (.git)</label>
-                        <input type="text" class="ol-mygit-input" id="ol-mygit-repo" placeholder="https://cnb.cool/user/repo.git">
-                    </div>
-                    <div class="ol-mygit-input-group">
-                        <label>Branch</label>
-                        <input type="text" class="ol-mygit-input" id="ol-mygit-branch" value="main">
-                    </div>
 
-                    <div class="ol-mygit-input-group">
-                        <label>Username (Required for CNB/Gitee)</label>
-                        <input type="text" class="ol-mygit-input" id="ol-mygit-username" placeholder="e.g. cnb (Leave empty for GitHub)">
-                    </div>
+            // 1.1 Header
+            const header = document.createElement('div');
+            header.className = 'ol-mygit-header';
 
-                    <div class="ol-mygit-input-group">
-                        <label>Token (PAT)</label>
-                        <input type="password" class="ol-mygit-input" id="ol-mygit-token" placeholder="Access Token">
-                    </div>
+            const titleSpan = document.createElement('span');
+            titleSpan.style.display = 'flex';
+            titleSpan.style.alignItems = 'center';
+            titleSpan.style.gap = '6px';
+            titleSpan.appendChild(parseSvg(ICONS.GIT || ICONS.MYGIT));
+            titleSpan.appendChild(document.createTextNode(' GitHub/CNB Sync'));
 
-                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; font-size:12px;">
-                        <label style="display:flex;align-items:center;cursor:pointer;">
-                            <input type="checkbox" id="ol-mygit-autosync-check" style="margin-right:5px;"> Auto Sync
-                        </label>
-                        <span>Every</span>
-                        <input type="number" id="ol-mygit-interval" value="10" min="1" style="width:40px; padding:2px;">
-                        <span>mins</span>
-                    </div>
+            const closeBtn = document.createElement('span');
+            closeBtn.className = 'ol-mygit-close';
+            closeBtn.id = 'ol-mygit-close-btn';
+            closeBtn.textContent = '×';
 
-                    <button class="ol-mygit-btn" id="ol-mygit-sync-btn">Sync Now</button>
-                    <div class="ol-mygit-status" id="ol-mygit-status">Ready</div>
-                </div>
-            `;
+            header.appendChild(titleSpan);
+            header.appendChild(closeBtn);
+            panel.appendChild(header);
+
+            // 1.2 Content
+            const content = document.createElement('div');
+            content.className = 'ol-mygit-content';
+
+            // Helper to create input groups
+            const createInputGroup = (labelText, inputId, placeholder, type = 'text', val = '') => {
+                const group = document.createElement('div');
+                group.className = 'ol-mygit-input-group';
+
+                const label = document.createElement('label');
+                label.textContent = labelText;
+
+                const input = document.createElement('input');
+                input.type = type;
+                input.className = 'ol-mygit-input';
+                input.id = inputId;
+                if (placeholder) input.placeholder = placeholder;
+                if (val) input.value = val;
+
+                group.appendChild(label);
+                group.appendChild(input);
+                return group;
+            };
+
+            content.appendChild(createInputGroup('Repo URL (.git)', 'ol-mygit-repo', 'https://cnb.cool/user/repo.git'));
+            content.appendChild(createInputGroup('Branch', 'ol-mygit-branch', '', 'text', 'main'));
+            content.appendChild(createInputGroup('Username (Required for CNB/Gitee)', 'ol-mygit-username', 'e.g. cnb (Leave empty for GitHub)'));
+            content.appendChild(createInputGroup('Token (PAT)', 'ol-mygit-token', 'Access Token', 'password'));
+
+            // 1.3 Auto Sync Controls
+            const autoSyncDiv = document.createElement('div');
+            autoSyncDiv.style.cssText = 'display:flex; gap:10px; align-items:center; margin-bottom:10px; font-size:12px;';
+
+            const checkLabel = document.createElement('label');
+            checkLabel.style.cssText = 'display:flex;align-items:center;cursor:pointer;';
+            const checkBox = document.createElement('input');
+            checkBox.type = 'checkbox';
+            checkBox.id = 'ol-mygit-autosync-check';
+            checkBox.style.marginRight = '5px';
+            checkLabel.appendChild(checkBox);
+            checkLabel.appendChild(document.createTextNode(' Auto Sync'));
+
+            const intervalInput = document.createElement('input');
+            intervalInput.type = 'number';
+            intervalInput.id = 'ol-mygit-interval';
+            intervalInput.value = '10';
+            intervalInput.min = '1';
+            intervalInput.style.cssText = 'width:40px; padding:2px;';
+
+            autoSyncDiv.appendChild(checkLabel);
+            autoSyncDiv.appendChild(document.createTextNode('Every '));
+            autoSyncDiv.appendChild(intervalInput);
+            autoSyncDiv.appendChild(document.createTextNode(' mins'));
+            content.appendChild(autoSyncDiv);
+
+            // 1.4 Buttons & Status
+            const syncButton = document.createElement('button');
+            syncButton.className = 'ol-mygit-btn';
+            syncButton.id = 'ol-mygit-sync-btn';
+            syncButton.textContent = 'Sync Now';
+            content.appendChild(syncButton);
+
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'ol-mygit-status';
+            statusDiv.id = 'ol-mygit-status';
+            statusDiv.textContent = 'Ready';
+            content.appendChild(statusDiv);
+
+            panel.appendChild(content);
             document.body.appendChild(panel);
 
-            // Create Sidebar Link
+            // --- 2. Create Sidebar Link ---
             const railLink = document.createElement('a');
             railLink.id = 'ol-mygit-rail-link';
             railLink.href = '#';
             railLink.className = 'ide-rail-tab-link nav-link';
             railLink.title = "Git Sync";
+
             const iconSpan = document.createElement('span');
             iconSpan.className = 'ol-mygit-rail-icon-container';
             iconSpan.appendChild(parseSvg(ICONS.MYGIT || ICONS.GIT));
@@ -109,13 +161,13 @@
             const railWrapper = document.querySelector(sidebarSelector);
             if (railWrapper) railWrapper.appendChild(railLink);
 
-            // State
+            // --- 状态管理 ---
             let isSyncing = false;
             let autoSyncTimer = null;
             const projectId = window.location.pathname.split('/')[2];
             const STORAGE_KEY_PROJECT = `ol_git_${projectId}`;
 
-            // Helpers
+            // --- 辅助函数 ---
             const updateStatus = (msg, color = 'black') => {
                 const el = document.getElementById('ol-mygit-status');
                 if(el) { el.textContent = msg; el.style.color = color; }
@@ -128,7 +180,7 @@
             railLink.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); togglePanel(); });
             document.getElementById('ol-mygit-close-btn').onclick = () => togglePanel();
 
-            // --- 核心同步任务 ---
+            // --- Core Sync Task (Updated with Diff Check) ---
             const performSync = async (isAuto = false) => {
                 const repo = document.getElementById('ol-mygit-repo').value.trim();
                 let branch = document.getElementById('ol-mygit-branch').value.trim();
@@ -177,7 +229,7 @@
                     await git.init({ fs: FS, dir: dir });
                     await git.addRemote({ fs: FS, dir: dir, remote: 'origin', url: repo, force: true });
 
-                    // 2. [关键修复] 先列出远程分支，看看服务器到底返回了什么
+                    // 2. Discover Remote Branches
                     if(!isAuto) updateStatus('Checking remote...', '#007bff');
 
                     let remoteRefs = [];
@@ -189,36 +241,29 @@
                             corsProxy: 'https://cors.isomorphic-git.org',
                             onAuth: authCallback
                         });
-                        console.log("Remote Refs:", remoteRefs);
                     } catch (listErr) {
                         console.warn("List refs failed:", listErr);
-                        // 如果列出分支失败，可能是空仓库，我们稍后尝试直接 push
                     }
 
-                    // 检查目标分支是否存在
                     const targetRef = `refs/heads/${branch}`;
                     const hasBranch = remoteRefs.find(r => r.ref === targetRef);
 
+                    // Auto-switch branch logic (e.g. main vs master)
                     if (!hasBranch && remoteRefs.length > 0) {
-                        // 尝试自动纠错：如果用户填 main 但只有 master，或者反过来
                         const altBranch = branch === 'main' ? 'master' : 'main';
                         const hasAlt = remoteRefs.find(r => r.ref === `refs/heads/${altBranch}`);
 
                         if (hasAlt) {
                             if(confirm(`Branch '${branch}' not found, but '${altBranch}' exists. Switch to '${altBranch}'?`)) {
                                 branch = altBranch;
-                                document.getElementById('ol-mygit-branch').value = branch; // Update UI
+                                document.getElementById('ol-mygit-branch').value = branch;
                             } else {
-                                throw new Error(`Branch '${branch}' not found. Available: ${remoteRefs.map(r => r.ref.replace('refs/heads/', '')).join(', ')}`);
+                                throw new Error(`Branch '${branch}' not found.`);
                             }
-                        } else {
-                             // 如果是空仓库（remoteRefs有东西但没我们要的），我们假设是要创建一个新分支
-                             console.log("Branch not found in list, assuming new branch.");
                         }
                     }
 
-                    // 3. Fetch & Checkout (如果分支存在)
-                    // 只有当远程确实有这个分支时，我们才拉取，否则就当做是初始化新分支
+                    // 3. Fetch & Checkout
                     if (hasBranch) {
                         if(!isAuto) updateStatus('Fetching...', '#007bff');
                         await git.fetch({
@@ -230,11 +275,8 @@
                             singleBranch: true
                         });
 
-                        await git.checkout({
-                            fs: FS, dir: dir, ref: branch, force: true
-                        });
+                        await git.checkout({ fs: FS, dir: dir, ref: branch, force: true });
                     } else {
-                        // 如果远程没这个分支，我们在本地切一个出来
                         await git.branch({ fs: FS, dir: dir, ref: branch, checkout: true });
                     }
 
@@ -273,15 +315,45 @@
                         }
                     }
 
-                    // 6. Push
-                    if(!isAuto) updateStatus('Pushing...', '#007bff');
+                    // 6. Commit & Diff Check (THE NEW LOGIC)
+                    if(!isAuto) updateStatus('Committing...', '#007bff');
                     await git.add({ fs: FS, dir: dir, filepath: '.' });
-                    await git.commit({
+
+                    const commitSha = await git.commit({
                         fs: FS, dir: dir,
                         message: `Overleaf Sync ${isAuto ? '(Auto)' : ''}: ${new Date().toLocaleString()}`,
                         author: { name: 'Overleaf Bot', email: 'bot@overleaf.com' }
                     });
 
+                    // --- CHECK IF FILES CHANGED ---
+                    let hasChanges = true;
+                    try {
+                        const { commit: newCommit } = await git.readCommit({ fs: FS, dir: dir, oid: commitSha });
+
+                        // If there is a parent commit, compare their Tree OIDs
+                        if (newCommit.parent && newCommit.parent.length > 0) {
+                            const parentSha = newCommit.parent[0];
+                            const { commit: parentCommit } = await git.readCommit({ fs: FS, dir: dir, oid: parentSha });
+
+                            // Identical trees mean identical file contents
+                            if (newCommit.tree === parentCommit.tree) {
+                                hasChanges = false;
+                                console.log("[Overleaf Git] Tree OIDs match. No changes detected.");
+                            }
+                        }
+                    } catch (diffErr) {
+                        console.warn("Diff check failed, processing with push:", diffErr);
+                    }
+
+                    // Stop if no changes
+                    if (!hasChanges) {
+                        updateStatus('No updates found.', '#17a2b8'); // Cyan color for "info"
+                        try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
+                        return; // Exit function immediately
+                    }
+
+                    // 7. Push (Only runs if changes exist)
+                    if(!isAuto) updateStatus('Pushing...', '#007bff');
                     await git.push({
                         fs: FS, http: git.http, dir: dir, remote: 'origin', ref: branch,
                         force: true,
