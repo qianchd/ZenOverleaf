@@ -2,8 +2,7 @@
     'use strict';
 
     // --- Shared Constants ---
-    // FIX 1: Added xmlns namespace so DOMParser recognizes this as an SVG graphic
-    const SVG_ATTRS = 'xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"';
+    const SVG_ATTRS = 'xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"';
 
     const ICONS = {
         SIDEBAR: `<svg ${SVG_ATTRS}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>`,
@@ -13,7 +12,7 @@
         MYGIT: `<svg ${SVG_ATTRS}><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>`
     };
 
-    // --- 2. Shared Helpers ---
+    // --- Shared Helpers ---
     function isFullscreen() {
         return document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
     }
@@ -27,394 +26,420 @@
         }
     }
 
-    // FIX 2: Parse and Import Node safely
     function parseSvg(svgString) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(svgString, 'image/svg+xml');
-        // Check for parsing errors
         if (doc.querySelector('parsererror')) {
-            console.error('SVG Parse Error', doc.querySelector('parsererror'));
-            return document.createElement('span'); // Fallback
+            return document.createElement('span');
         }
-        // Import the node into the current document to ensure it renders correctly
         return document.importNode(doc.documentElement, true);
     }
 
-// ==========================================
+    // ==========================================
+    // SHARED: GIT PANEL LOGIC
+    // ==========================================
+    function initGitPanel(platform, mountPoint) {
+        const linkId = `ol-mygit-trigger-${platform}`;
+        if (document.getElementById(linkId)) return;
+
+        // --- Determine Project ID (Generic) ---
+        let projectId = 'unknown_project';
+        if (platform === 'overleaf') {
+            const parts = window.location.pathname.split('/');
+            if(parts.length > 2) projectId = parts[2];
+        } else if (platform === 'texpage') {
+            // Try to grab UUID from URL if present, else use slug
+            const match = window.location.pathname.match(/([0-9a-fA-F-]{36})/);
+            projectId = match ? match[1] : window.location.pathname.replace(/^\/|\/$/g, '').replace(/\//g, '_');
+        }
+        const STORAGE_KEY_PROJECT = `git_config_${projectId}`;
+
+        // --- 1. Create Panel ---
+        const panel = document.createElement('div');
+        panel.className = 'ol-mygit-panel';
+
+        if (platform === 'texpage') {
+            panel.style.left = 'unset';
+            panel.style.right = '280px';
+            panel.style.top = '50px';
+            panel.style.bottom = 'unset';
+        }
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'ol-mygit-header';
+        const titleSpan = document.createElement('span');
+        titleSpan.style.cssText = 'display:flex;align-items:center;gap:6px';
+        titleSpan.appendChild(parseSvg(ICONS.MYGIT));
+        titleSpan.appendChild(document.createTextNode(' GitHub/CNB Sync'));
+        const closeBtn = document.createElement('span');
+        closeBtn.className = 'ol-mygit-close';
+        closeBtn.id = 'ol-mygit-close-btn';
+        closeBtn.textContent = '×';
+        header.appendChild(titleSpan);
+        header.appendChild(closeBtn);
+        panel.appendChild(header);
+
+        // Content
+        const content = document.createElement('div');
+        content.className = 'ol-mygit-content';
+
+        const createInput = (labelText, id, placeholder, type = 'text', defaultVal = '') => {
+            const group = document.createElement('div');
+            group.className = 'ol-mygit-input-group';
+            const label = document.createElement('label');
+            label.textContent = labelText;
+            const input = document.createElement('input');
+            input.type = type;
+            input.className = 'ol-mygit-input';
+            input.id = id;
+            if(placeholder) input.placeholder = placeholder;
+            if(defaultVal) input.value = defaultVal;
+            group.appendChild(label);
+            group.appendChild(input);
+            return group;
+        };
+
+        content.appendChild(createInput('Repo URL (.git)', 'ol-mygit-repo', 'https://cnb.cool/user/repo.git'));
+        content.appendChild(createInput('Branch', 'ol-mygit-branch', '', 'text', 'main'));
+        content.appendChild(createInput('Username (Required for CNB/Gitee)', 'ol-mygit-username', 'e.g. cnb'));
+        content.appendChild(createInput('Token (PAT)', 'ol-mygit-token', 'Access Token', 'password'));
+
+        // Auto Sync
+        const autoSyncContainer = document.createElement('div');
+        autoSyncContainer.style.cssText = 'display:flex; gap:10px; align-items:center; margin-bottom:10px; font-size:12px;';
+        const checkboxLabel = document.createElement('label');
+        checkboxLabel.style.cssText = 'display:flex;align-items:center;cursor:pointer;';
+        const autoSyncCheck = document.createElement('input');
+        autoSyncCheck.type = 'checkbox';
+        autoSyncCheck.id = 'ol-mygit-autosync-check';
+        autoSyncCheck.style.marginRight = '5px';
+        checkboxLabel.appendChild(autoSyncCheck);
+        checkboxLabel.appendChild(document.createTextNode(' Auto Sync'));
+        const intervalInput = document.createElement('input');
+        intervalInput.type = 'number';
+        intervalInput.id = 'ol-mygit-interval';
+        intervalInput.value = '10';
+        intervalInput.min = '1';
+        intervalInput.style.cssText = 'width:40px; padding:2px;';
+        autoSyncContainer.appendChild(checkboxLabel);
+        autoSyncContainer.appendChild(document.createTextNode('Every '));
+        autoSyncContainer.appendChild(intervalInput);
+        autoSyncContainer.appendChild(document.createTextNode(' mins'));
+        content.appendChild(autoSyncContainer);
+
+        // Button & Status
+        const syncBtn = document.createElement('button');
+        syncBtn.className = 'ol-mygit-btn';
+        syncBtn.id = 'ol-mygit-sync-btn';
+        syncBtn.textContent = 'Sync Now';
+        content.appendChild(syncBtn);
+
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'ol-mygit-status';
+        statusDiv.id = 'ol-mygit-status';
+        statusDiv.textContent = 'Ready';
+        content.appendChild(statusDiv);
+
+        panel.appendChild(content);
+        document.body.appendChild(panel);
+
+        // --- 2. Create Trigger ---
+        const togglePanel = () => {
+            if(panel.style.display === 'block') {
+                panel.style.display = 'none';
+                if(platform === 'overleaf' && railLink) railLink.classList.remove('active');
+            } else {
+                panel.style.display = 'block';
+                if(platform === 'overleaf' && railLink) railLink.classList.add('active');
+            }
+        };
+
+        let railLink;
+        if (platform === 'overleaf') {
+            railLink = document.createElement('a');
+            railLink.id = linkId;
+            railLink.href = '#';
+            railLink.className = 'ide-rail-tab-link nav-link';
+            railLink.title = "Git Sync";
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'ol-mygit-rail-icon-container';
+            iconSpan.appendChild(parseSvg(ICONS.MYGIT));
+            railLink.appendChild(iconSpan);
+            railLink.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); togglePanel(); });
+            if (mountPoint) mountPoint.appendChild(railLink);
+        } else if (platform === 'texpage') {
+            const li = document.createElement('li');
+            li.id = linkId;
+            li.style.cursor = 'pointer';
+            li.onclick = (e) => { e.stopPropagation(); togglePanel(); };
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'anticon';
+            iconSpan.style.marginRight = '8px';
+            iconSpan.appendChild(parseSvg(ICONS.MYGIT));
+            const textNode = document.createTextNode(' MyGit');
+            li.appendChild(iconSpan);
+            li.appendChild(textNode);
+            if (mountPoint) mountPoint.appendChild(li);
+        }
+
+        document.getElementById('ol-mygit-close-btn').onclick = () => togglePanel();
+
+        // --- Core Sync Logic (Updated for TexPage URL parsing) ---
+        let isSyncing = false;
+        let autoSyncTimer = null;
+
+        const updateStatus = (msg, color = 'black') => {
+            const el = document.getElementById('ol-mygit-status');
+            if(el) { el.textContent = msg; el.style.color = color; }
+        };
+
+        const performSync = async (isAuto = false) => {
+            const repo = document.getElementById('ol-mygit-repo').value.trim();
+            let branch = document.getElementById('ol-mygit-branch').value.trim();
+            const username = document.getElementById('ol-mygit-username').value.trim();
+            const token = document.getElementById('ol-mygit-token').value.trim();
+            const btn = document.getElementById('ol-mygit-sync-btn');
+
+            if (!repo || !token) {
+                if(!isAuto) updateStatus('Missing Repo/Token', 'red');
+                return;
+            }
+
+            if (isSyncing) return;
+            isSyncing = true;
+            if (!isAuto) {
+                btn.disabled = true;
+                btn.textContent = 'Syncing...';
+            } else {
+                updateStatus('Auto Syncing...', '#007bff');
+            }
+
+            const autoSyncCheck = document.getElementById('ol-mygit-autosync-check').checked;
+            const intervalVal = document.getElementById('ol-mygit-interval').value;
+            const saveObj = {};
+            saveObj[STORAGE_KEY_PROJECT] = { repo, branch, username, token, autoSync: autoSyncCheck, interval: intervalVal };
+            chrome.storage.local.set(saveObj);
+
+            const DB_NAME = `ol-git-mem-${Date.now()}`;
+
+            try {
+                if (typeof git === 'undefined' || typeof LightningFS === 'undefined') throw new Error("Libs missing");
+                if (typeof GitHttp !== 'undefined') git.http = GitHttp;
+
+                const FS = new LightningFS(DB_NAME);
+                const pfs = FS.promises;
+                const dir = `/${projectId}`;
+                const authCallback = () => username ? { username: username, password: token } : { username: token };
+
+                // 1. Init
+                await pfs.mkdir(dir);
+                await git.init({ fs: FS, dir: dir });
+                await git.addRemote({ fs: FS, dir: dir, remote: 'origin', url: repo, force: true });
+
+                // 2. Discover Remote
+                if(!isAuto) updateStatus('Checking remote...', '#007bff');
+                let remoteRefs = [];
+                try {
+                    remoteRefs = await git.listServerRefs({
+                        http: git.http, url: repo, prefix: 'refs/heads',
+                        corsProxy: 'https://cors.isomorphic-git.org', onAuth: authCallback
+                    });
+                } catch (e) { console.warn("List refs warning:", e); }
+
+                const targetRef = `refs/heads/${branch}`;
+                const hasBranch = remoteRefs.find(r => r.ref === targetRef);
+                if (!hasBranch && remoteRefs.length > 0) {
+                    const alt = branch === 'main' ? 'master' : 'main';
+                    if (remoteRefs.find(r => r.ref === `refs/heads/${alt}`) && confirm(`Branch '${branch}' not found, use '${alt}'?`)) {
+                        branch = alt;
+                        document.getElementById('ol-mygit-branch').value = branch;
+                    }
+                }
+
+                // 3. Fetch/Checkout
+                if (hasBranch) {
+                    if(!isAuto) updateStatus('Fetching...', '#007bff');
+                    await git.fetch({
+                        fs: FS, http: git.http, dir: dir, remote: 'origin', ref: branch,
+                        corsProxy: 'https://cors.isomorphic-git.org', onAuth: authCallback,
+                        depth: 1, singleBranch: true
+                    });
+                    await git.checkout({ fs: FS, dir: dir, ref: branch, force: true });
+                } else {
+                    await git.branch({ fs: FS, dir: dir, ref: branch, checkout: true });
+                }
+
+                // 4. Download (TexPage: Extract IDs from URL)
+                if(!isAuto) updateStatus('Downloading ZIP...', '#007bff');
+                let dlUrl;
+
+                if (platform === 'overleaf') {
+                    dlUrl = `https://www.overleaf.com/project/${projectId}/download/zip`;
+                } else {
+                    // --- TexPage ID Extraction Strategy ---
+                    let pKey, vNo;
+
+                    // Priority 1: Extract from URL (e.g. /project/user/UUID/UUID)
+                    const urlMatch = window.location.pathname.match(/\/([0-9a-fA-F-]{36})\/([0-9a-fA-F-]{36})/);
+                    if (urlMatch) {
+                        pKey = urlMatch[1];
+                        vNo = urlMatch[2];
+                        console.log(`[Git Sync] Extracted from URL: P=${pKey}, V=${vNo}`);
+                    } else {
+                        // Priority 2: Fallback to scraping page source (for vanity URLs)
+                        console.log("[Git Sync] URL regex failed, scanning source...");
+                        const html = document.documentElement.innerHTML;
+                        const pMatch = html.match(/"projectKey"\s*:\s*"([0-9a-fA-F-]+)"/);
+                        const vMatch = html.match(/"versionNo"\s*:\s*"([0-9a-fA-F-]+)"/) || html.match(/"versionId"\s*:\s*"([0-9a-fA-F-]+)"/);
+                        if (pMatch) pKey = pMatch[1];
+                        if (vMatch) vNo = vMatch[1];
+                    }
+
+                    if (!pKey || !vNo) {
+                        throw new Error("Could not find ProjectKey or VersionNo. Please ensure you are inside a project editor.");
+                    }
+
+                    dlUrl = `https://www.texpage.com/api/project/download?projectKey=${pKey}&versionNo=${vNo}&bbl=false`;
+                }
+
+                const resp = await fetch(dlUrl, { method: 'GET', credentials: 'include' });
+                if(!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+
+                // Content Type check
+                const cType = resp.headers.get('content-type');
+                if (cType && cType.includes('application/json')) {
+                    const json = await resp.json();
+                    if (json.status && json.status.code !== 200) {
+                        throw new Error(`API Error: ${json.status.message} (${json.status.code})`);
+                    }
+                    throw new Error("Got JSON but expected ZIP. Check console.");
+                }
+
+                const blob = await resp.blob();
+                if (blob.size < 100) throw new Error("File too small");
+
+                const base64String = await new Promise((resolve) => {
+                    const r = new FileReader();
+                    r.onload = () => resolve(r.result.split(',')[1]);
+                    r.readAsDataURL(blob);
+                });
+                const zip = await JSZip.loadAsync(base64String, { base64: true });
+
+                // 5. Extract
+                if(!isAuto) updateStatus('Extracting...', '#007bff');
+                const ensureDir = async (p) => {
+                    const parts = p.split('/'); parts.pop();
+                    let c = '';
+                    for (const part of parts) {
+                        if(!part) continue; c += '/' + part;
+                        try { await pfs.mkdir(c); } catch (e) {}
+                    }
+                };
+                for (const filename of Object.keys(zip.files)) {
+                    if (!zip.files[filename].dir) {
+                        const content = await zip.files[filename].async('uint8array');
+                        const fullPath = `${dir}/${filename}`;
+                        await ensureDir(fullPath);
+                        await pfs.writeFile(fullPath, content);
+                    }
+                }
+
+                // 6. Commit & Diff
+                if(!isAuto) updateStatus('Committing...', '#007bff');
+                await git.add({ fs: FS, dir: dir, filepath: '.' });
+                const commitSha = await git.commit({
+                    fs: FS, dir: dir,
+                    message: `${platform === 'overleaf' ? 'Overleaf' : 'TexPage'} Sync ${isAuto ? '(Auto)' : ''}: ${new Date().toLocaleString()}`,
+                    author: { name: 'Bot', email: 'bot@example.com' }
+                });
+
+                // Diff Check
+                let hasChanges = true;
+                try {
+                    const { commit: newC } = await git.readCommit({ fs: FS, dir: dir, oid: commitSha });
+                    if (newC.parent && newC.parent.length > 0) {
+                        const { commit: parentC } = await git.readCommit({ fs: FS, dir: dir, oid: newC.parent[0] });
+                        if (newC.tree === parentC.tree) {
+                            hasChanges = false;
+                            console.log("[Git Sync] No changes.");
+                        }
+                    }
+                } catch (e) {}
+
+                if (!hasChanges) {
+                    updateStatus('No updates found.', '#17a2b8');
+                    try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
+                    return;
+                }
+
+                // 7. Push
+                if(!isAuto) updateStatus('Pushing...', '#007bff');
+                await git.push({
+                    fs: FS, http: git.http, dir: dir, remote: 'origin', ref: branch,
+                    force: true, onAuth: authCallback, corsProxy: 'https://cors.isomorphic-git.org',
+                });
+
+                updateStatus(`Success: ${new Date().toLocaleTimeString()}`, '#28a745');
+                try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
+
+            } catch (err) {
+                console.error("Sync Error:", err);
+                updateStatus(`Error: ${err.message}`, '#dc3545');
+            } finally {
+                isSyncing = false;
+                btn.disabled = false;
+                btn.textContent = 'Sync Now';
+            }
+        };
+
+        const manageAutoSync = () => {
+            const isChecked = document.getElementById('ol-mygit-autosync-check').checked;
+            const intervalMin = parseInt(document.getElementById('ol-mygit-interval').value) || 10;
+            if (autoSyncTimer) clearInterval(autoSyncTimer);
+            if (isChecked) {
+                autoSyncTimer = setInterval(() => performSync(true), intervalMin * 60 * 1000);
+            }
+        };
+
+        document.getElementById('ol-mygit-sync-btn').onclick = () => performSync(false);
+        document.getElementById('ol-mygit-autosync-check').addEventListener('change', () => {
+            manageAutoSync();
+            const saveObj = {};
+            saveObj[STORAGE_KEY_PROJECT] = {
+                repo: document.getElementById('ol-mygit-repo').value,
+                branch: document.getElementById('ol-mygit-branch').value,
+                username: document.getElementById('ol-mygit-username').value,
+                token: document.getElementById('ol-mygit-token').value,
+                autoSync: document.getElementById('ol-mygit-autosync-check').checked,
+                interval: document.getElementById('ol-mygit-interval').value
+            };
+            chrome.storage.local.set(saveObj);
+        });
+
+        // Load Config
+        if (chrome && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.get([STORAGE_KEY_PROJECT], function(result) {
+                const conf = result[STORAGE_KEY_PROJECT] || {};
+                if(conf.repo) document.getElementById('ol-mygit-repo').value = conf.repo;
+                if(conf.branch) document.getElementById('ol-mygit-branch').value = conf.branch;
+                if(conf.username) document.getElementById('ol-mygit-username').value = conf.username;
+                if(conf.token) document.getElementById('ol-mygit-token').value = conf.token;
+                if(conf.autoSync) {
+                    document.getElementById('ol-mygit-autosync-check').checked = true;
+                    manageAutoSync();
+                }
+                if(conf.interval) document.getElementById('ol-mygit-interval').value = conf.interval;
+            });
+        }
+    }
+
+    // ==========================================
     // LOGIC 1: OVERLEAF
     // ==========================================
     function initOverleaf() {
         const BUTTON_CLASS = 'ol-zen-button';
 
-        // --- Git Sync Logic (Smart Discovery Version) ---
-        function initGitPanel() {
-            if (document.getElementById('ol-mygit-rail-link')) return;
-
-            // --- 1. Create panel via DOM API (replace innerHTML) ---
-            const panel = document.createElement('div');
-            panel.className = 'ol-mygit-panel';
-
-            // 1.1 Header
-            const header = document.createElement('div');
-            header.className = 'ol-mygit-header';
-
-            const titleSpan = document.createElement('span');
-            titleSpan.style.display = 'flex';
-            titleSpan.style.alignItems = 'center';
-            titleSpan.style.gap = '6px';
-            titleSpan.appendChild(parseSvg(ICONS.GIT || ICONS.MYGIT));
-            titleSpan.appendChild(document.createTextNode(' GitHub/CNB Sync'));
-
-            const closeBtn = document.createElement('span');
-            closeBtn.className = 'ol-mygit-close';
-            closeBtn.id = 'ol-mygit-close-btn';
-            closeBtn.textContent = '×';
-
-            header.appendChild(titleSpan);
-            header.appendChild(closeBtn);
-            panel.appendChild(header);
-
-            // 1.2 Content
-            const content = document.createElement('div');
-            content.className = 'ol-mygit-content';
-
-            // Helper to create input groups
-            const createInputGroup = (labelText, inputId, placeholder, type = 'text', val = '') => {
-                const group = document.createElement('div');
-                group.className = 'ol-mygit-input-group';
-
-                const label = document.createElement('label');
-                label.textContent = labelText;
-
-                const input = document.createElement('input');
-                input.type = type;
-                input.className = 'ol-mygit-input';
-                input.id = inputId;
-                if (placeholder) input.placeholder = placeholder;
-                if (val) input.value = val;
-
-                group.appendChild(label);
-                group.appendChild(input);
-                return group;
-            };
-
-            content.appendChild(createInputGroup('Repo URL (.git)', 'ol-mygit-repo', 'https://cnb.cool/user/repo.git'));
-            content.appendChild(createInputGroup('Branch', 'ol-mygit-branch', '', 'text', 'main'));
-            content.appendChild(createInputGroup('Username (Required for CNB/Gitee)', 'ol-mygit-username', 'e.g. cnb (Leave empty for GitHub)'));
-            content.appendChild(createInputGroup('Token (PAT)', 'ol-mygit-token', 'Access Token', 'password'));
-
-            // 1.3 Auto Sync Controls
-            const autoSyncDiv = document.createElement('div');
-            autoSyncDiv.style.cssText = 'display:flex; gap:10px; align-items:center; margin-bottom:10px; font-size:12px;';
-
-            const checkLabel = document.createElement('label');
-            checkLabel.style.cssText = 'display:flex;align-items:center;cursor:pointer;';
-            const checkBox = document.createElement('input');
-            checkBox.type = 'checkbox';
-            checkBox.id = 'ol-mygit-autosync-check';
-            checkBox.style.marginRight = '5px';
-            checkLabel.appendChild(checkBox);
-            checkLabel.appendChild(document.createTextNode(' Auto Sync'));
-
-            const intervalInput = document.createElement('input');
-            intervalInput.type = 'number';
-            intervalInput.id = 'ol-mygit-interval';
-            intervalInput.value = '10';
-            intervalInput.min = '1';
-            intervalInput.style.cssText = 'width:40px; padding:2px;';
-
-            autoSyncDiv.appendChild(checkLabel);
-            autoSyncDiv.appendChild(document.createTextNode('Every '));
-            autoSyncDiv.appendChild(intervalInput);
-            autoSyncDiv.appendChild(document.createTextNode(' mins'));
-            content.appendChild(autoSyncDiv);
-
-            // 1.4 Buttons & Status
-            const syncButton = document.createElement('button');
-            syncButton.className = 'ol-mygit-btn';
-            syncButton.id = 'ol-mygit-sync-btn';
-            syncButton.textContent = 'Sync Now';
-            content.appendChild(syncButton);
-
-            const statusDiv = document.createElement('div');
-            statusDiv.className = 'ol-mygit-status';
-            statusDiv.id = 'ol-mygit-status';
-            statusDiv.textContent = 'Ready';
-            content.appendChild(statusDiv);
-
-            panel.appendChild(content);
-            document.body.appendChild(panel);
-
-            // --- 2. Create Sidebar Link ---
-            const railLink = document.createElement('a');
-            railLink.id = 'ol-mygit-rail-link';
-            railLink.href = '#';
-            railLink.className = 'ide-rail-tab-link nav-link';
-            railLink.title = "Git Sync";
-
-            const iconSpan = document.createElement('span');
-            iconSpan.className = 'ol-mygit-rail-icon-container';
-            iconSpan.appendChild(parseSvg(ICONS.MYGIT || ICONS.GIT));
-            railLink.appendChild(iconSpan);
-
-            const sidebarSelector = '.ide-rail-tabs-wrapper';
-            const railWrapper = document.querySelector(sidebarSelector);
-            if (railWrapper) railWrapper.appendChild(railLink);
-
-            // --- control states ---
-            let isSyncing = false;
-            let autoSyncTimer = null;
-            const projectId = window.location.pathname.split('/')[2];
-            const STORAGE_KEY_PROJECT = `ol_git_${projectId}`;
-
-            // --- functions ---
-            const updateStatus = (msg, color = 'black') => {
-                const el = document.getElementById('ol-mygit-status');
-                if(el) { el.textContent = msg; el.style.color = color; }
-            };
-
-            const togglePanel = () => {
-                panel.classList.toggle('open');
-                railLink.classList.toggle('active');
-            };
-            railLink.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); togglePanel(); });
-            document.getElementById('ol-mygit-close-btn').onclick = () => togglePanel();
-
-            // --- Core Sync Task (Updated with Diff Check) ---
-            const performSync = async (isAuto = false) => {
-                const repo = document.getElementById('ol-mygit-repo').value.trim();
-                let branch = document.getElementById('ol-mygit-branch').value.trim();
-                const username = document.getElementById('ol-mygit-username').value.trim();
-                const token = document.getElementById('ol-mygit-token').value.trim();
-                const btn = document.getElementById('ol-mygit-sync-btn');
-
-                if (!repo || !token) {
-                    if(!isAuto) updateStatus('Missing Repo/Token', 'red');
-                    return;
-                }
-
-                if (isSyncing) return;
-                isSyncing = true;
-
-                if (!isAuto) {
-                    btn.disabled = true;
-                    btn.textContent = 'Syncing...';
-                } else {
-                    updateStatus('Auto Syncing...', '#007bff');
-                }
-
-                // Save config
-                const autoSyncCheck = document.getElementById('ol-mygit-autosync-check').checked;
-                const intervalVal = document.getElementById('ol-mygit-interval').value;
-                const saveObj = {};
-                saveObj[STORAGE_KEY_PROJECT] = { repo, branch, username, token, autoSync: autoSyncCheck, interval: intervalVal };
-                chrome.storage.local.set(saveObj);
-
-                const DB_NAME = `ol-git-mem-${Date.now()}`;
-
-                try {
-                    if (typeof git === 'undefined' || typeof LightningFS === 'undefined') throw new Error("Libs missing");
-                    if (typeof GitHttp !== 'undefined') git.http = GitHttp;
-
-                    const FS = new LightningFS(DB_NAME);
-                    const pfs = FS.promises;
-                    const dir = `/${projectId}`;
-
-                    const authCallback = () => {
-                        return username ? { username: username, password: token } : { username: token };
-                    };
-
-                    // 1. Init FS & Git
-                    await pfs.mkdir(dir);
-                    await git.init({ fs: FS, dir: dir });
-                    await git.addRemote({ fs: FS, dir: dir, remote: 'origin', url: repo, force: true });
-
-                    // 2. Discover Remote Branches
-                    if(!isAuto) updateStatus('Checking remote...', '#007bff');
-
-                    let remoteRefs = [];
-                    try {
-                        remoteRefs = await git.listServerRefs({
-                            http: git.http,
-                            url: repo,
-                            prefix: 'refs/heads',
-                            corsProxy: 'https://cors.isomorphic-git.org',
-                            onAuth: authCallback
-                        });
-                    } catch (listErr) {
-                        console.warn("List refs failed:", listErr);
-                    }
-
-                    const targetRef = `refs/heads/${branch}`;
-                    const hasBranch = remoteRefs.find(r => r.ref === targetRef);
-
-                    // Auto-switch branch logic (e.g. main vs master)
-                    if (!hasBranch && remoteRefs.length > 0) {
-                        const altBranch = branch === 'main' ? 'master' : 'main';
-                        const hasAlt = remoteRefs.find(r => r.ref === `refs/heads/${altBranch}`);
-
-                        if (hasAlt) {
-                            if(confirm(`Branch '${branch}' not found, but '${altBranch}' exists. Switch to '${altBranch}'?`)) {
-                                branch = altBranch;
-                                document.getElementById('ol-mygit-branch').value = branch;
-                            } else {
-                                throw new Error(`Branch '${branch}' not found.`);
-                            }
-                        }
-                    }
-
-                    // 3. Fetch & Checkout
-                    if (hasBranch) {
-                        if(!isAuto) updateStatus('Fetching...', '#007bff');
-                        await git.fetch({
-                            fs: FS, http: git.http, dir: dir,
-                            remote: 'origin', ref: branch,
-                            corsProxy: 'https://cors.isomorphic-git.org',
-                            onAuth: authCallback,
-                            depth: 1,
-                            singleBranch: true
-                        });
-
-                        await git.checkout({ fs: FS, dir: dir, ref: branch, force: true });
-                    } else {
-                        await git.branch({ fs: FS, dir: dir, ref: branch, checkout: true });
-                    }
-
-                    // 4. Download ZIP
-                    if(!isAuto) updateStatus('Downloading ZIP...', '#007bff');
-                    const dlUrl = `https://www.overleaf.com/project/${projectId}/download/zip`;
-                    const resp = await fetch(dlUrl, { method: 'GET', credentials: 'include' });
-                    if(!resp.ok) throw new Error(`Download status: ${resp.status}`);
-
-                    const cType = resp.headers.get('content-type');
-                    if (cType && cType.toLowerCase().includes('text/html')) throw new Error("Got HTML. Relogin required.");
-
-                    const ab = await resp.arrayBuffer();
-                    if (ab.byteLength < 100) throw new Error("ZIP too small.");
-
-                    const b64 = btoa(new Uint8Array(ab).reduce((d, b) => d + String.fromCharCode(b), ''));
-                    const zip = await JSZip.loadAsync(b64, { base64: true });
-
-                    // 5. Extract
-                    if(!isAuto) updateStatus('Extracting...', '#007bff');
-                    const ensureDir = async (p) => {
-                        const parts = p.split('/'); parts.pop();
-                        let c = '';
-                        for (const part of parts) {
-                            if(!part) continue; c += '/' + part;
-                            try { await pfs.mkdir(c); } catch (e) {}
-                        }
-                    };
-
-                    for (const filename of Object.keys(zip.files)) {
-                        if (!zip.files[filename].dir) {
-                            const content = await zip.files[filename].async('uint8array');
-                            const fullPath = `${dir}/${filename}`;
-                            await ensureDir(fullPath);
-                            await pfs.writeFile(fullPath, content);
-                        }
-                    }
-
-                    // 6. Commit & Diff Check (THE NEW LOGIC)
-                    if(!isAuto) updateStatus('Committing...', '#007bff');
-                    await git.add({ fs: FS, dir: dir, filepath: '.' });
-
-                    const commitSha = await git.commit({
-                        fs: FS, dir: dir,
-                        message: `Overleaf Sync ${isAuto ? '(Auto)' : ''}: ${new Date().toLocaleString()}`,
-                        author: { name: 'Overleaf Bot', email: 'bot@overleaf.com' }
-                    });
-
-                    // --- CHECK IF FILES CHANGED ---
-                    let hasChanges = true;
-                    try {
-                        const { commit: newCommit } = await git.readCommit({ fs: FS, dir: dir, oid: commitSha });
-
-                        // If there is a parent commit, compare their Tree OIDs
-                        if (newCommit.parent && newCommit.parent.length > 0) {
-                            const parentSha = newCommit.parent[0];
-                            const { commit: parentCommit } = await git.readCommit({ fs: FS, dir: dir, oid: parentSha });
-
-                            // Identical trees mean identical file contents
-                            if (newCommit.tree === parentCommit.tree) {
-                                hasChanges = false;
-                                console.log("[Overleaf Git] Tree OIDs match. No changes detected.");
-                            }
-                        }
-                    } catch (diffErr) {
-                        console.warn("Diff check failed, processing with push:", diffErr);
-                    }
-
-                    // Stop if no changes
-                    if (!hasChanges) {
-                        updateStatus('No updates found.', '#17a2b8'); // Cyan color for "info"
-                        try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
-                        return; // Exit function immediately
-                    }
-
-                    // 7. Push (Only runs if changes exist)
-                    if(!isAuto) updateStatus('Pushing...', '#007bff');
-                    await git.push({
-                        fs: FS, http: git.http, dir: dir, remote: 'origin', ref: branch,
-                        force: true,
-                        onAuth: authCallback,
-                        corsProxy: 'https://cors.isomorphic-git.org',
-                    });
-
-                    updateStatus(`Success: ${new Date().toLocaleTimeString()}`, '#28a745');
-
-                    // Cleanup
-                    try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
-
-                } catch (err) {
-                    console.error("Sync Error:", err);
-                    updateStatus(`Error: ${err.message}`, '#dc3545');
-                } finally {
-                    isSyncing = false;
-                    btn.disabled = false;
-                    btn.textContent = 'Sync Now';
-                }
-            };
-
-            const manageAutoSync = () => {
-                const isChecked = document.getElementById('ol-mygit-autosync-check').checked;
-                const intervalMin = parseInt(document.getElementById('ol-mygit-interval').value) || 10;
-                if (autoSyncTimer) clearInterval(autoSyncTimer);
-                autoSyncTimer = null;
-                if (isChecked) {
-                    console.log(`[Overleaf Git] Auto-sync enabled. Interval: ${intervalMin} mins.`);
-                    autoSyncTimer = setInterval(() => performSync(true), intervalMin * 60 * 1000);
-                }
-            };
-
-            document.getElementById('ol-mygit-sync-btn').onclick = () => performSync(false);
-            document.getElementById('ol-mygit-autosync-check').addEventListener('change', () => {
-                manageAutoSync();
-                const repo = document.getElementById('ol-mygit-repo').value;
-                const branch = document.getElementById('ol-mygit-branch').value;
-                const username = document.getElementById('ol-mygit-username').value;
-                const token = document.getElementById('ol-mygit-token').value;
-                const checked = document.getElementById('ol-mygit-autosync-check').checked;
-                const interval = document.getElementById('ol-mygit-interval').value;
-                const saveObj = {};
-                saveObj[STORAGE_KEY_PROJECT] = { repo, branch, username, token, autoSync: checked, interval };
-                chrome.storage.local.set(saveObj);
-            });
-
-            if (chrome && chrome.storage && chrome.storage.local) {
-                chrome.storage.local.get([STORAGE_KEY_PROJECT], function(result) {
-                    const conf = result[STORAGE_KEY_PROJECT] || {};
-                    if(conf.repo) document.getElementById('ol-mygit-repo').value = conf.repo;
-                    if(conf.branch) document.getElementById('ol-mygit-branch').value = conf.branch;
-                    if(conf.username) document.getElementById('ol-mygit-username').value = conf.username;
-                    if(conf.token) document.getElementById('ol-mygit-token').value = conf.token;
-                    if (conf.autoSync) document.getElementById('ol-mygit-autosync-check').checked = true;
-                    if (conf.interval) document.getElementById('ol-mygit-interval').value = conf.interval;
-                    if (conf.autoSync) manageAutoSync();
-                });
-            }
-        }
-        // --- Zen Buttons Logic ---
         function fixPdfScroll() {
             const viewers = document.querySelectorAll('.pdfjs-viewer-inner');
             viewers.forEach(el => {
@@ -444,19 +469,10 @@
             const docEl = document.documentElement;
             if (!isFullscreen()) {
                 const request = docEl.requestFullscreen || docEl.mozRequestFullScreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
-                if (request) {
-                    request.call(docEl).then(() => {
-                        fixPdfScroll();
-                        triggerResizePulse();
-                    });
-                }
+                if (request) request.call(docEl).then(() => { fixPdfScroll(); triggerResizePulse(); });
             } else {
                 const cancel = document.exitFullscreen || document.mozCancelFullScreen || document.webkitExitFullscreen || document.msExitFullscreen;
-                if (cancel) {
-                    cancel.call(document).then(() => {
-                        triggerResizePulse();
-                    });
-                }
+                if (cancel) cancel.call(document).then(() => triggerResizePulse());
             }
         }
 
@@ -474,18 +490,15 @@
             const toolbar = document.querySelector('.toolbar-editor') || document.querySelector('.toolbar-header');
             if (!toolbar) return;
 
-            // Try to init git panel
-            initGitPanel();
+            const sidebar = document.querySelector('.ide-rail-tabs-wrapper');
+            if (sidebar) initGitPanel('overleaf', sidebar);
 
             if (toolbar.querySelector(`.${BUTTON_CLASS}`)) return;
 
             const insert_loc = document.querySelector("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div.ol-cm-toolbar-button-group.ol-cm-toolbar-end");
-
             const premiumBadges = document.querySelectorAll("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div:nth-child(n+3):nth-child(-n+7)");
             if(premiumBadges.length > 2) {
-                premiumBadges.forEach(el => {
-                    el.style.setProperty('display', 'none', 'important');
-                });
+                premiumBadges.forEach(el => el.style.setProperty('display', 'none', 'important'));
             }
 
             const buttons = [
@@ -497,20 +510,13 @@
                     toggleDisplay(".cm-gutters");
                     toggleDisplay(".cm-gutter-lint");
                 }),
-                createButton(ICONS.HEADER, "Toggle Header", "btnHeader", () => {
-                    toggleDisplay(".ide-redesign-toolbar");
-                }),
-                createButton(ICONS.FULLSCREEN, "Toggle Fullscreen", "btnFull", () => {
-                    toggleFullScreen();
-                })
+                createButton(ICONS.HEADER, "Toggle Header", "btnHeader", () => toggleDisplay(".ide-redesign-toolbar")),
+                createButton(ICONS.FULLSCREEN, "Toggle Fullscreen", "btnFull", () => toggleFullScreen())
             ];
 
             buttons.forEach(btn => {
-                if (insert_loc && insert_loc.parentNode === toolbar) {
-                    toolbar.insertBefore(btn, insert_loc);
-                } else {
-                    toolbar.appendChild(btn);
-                }
+                if (insert_loc && insert_loc.parentNode === toolbar) toolbar.insertBefore(btn, insert_loc);
+                else toolbar.appendChild(btn);
             });
             toggleDisplay(".cm-gutters", 'none');
             toggleDisplay(".cm-gutter-lint", 'none');
@@ -519,23 +525,8 @@
         function waitForLoadingGone() {
             return new Promise(resolve => {
                 if (!document.querySelector('.loading-panel')) return resolve();
-                let counter = 0;
-                let counter_large = 0;
-                let counter_leak = 0;
                 const timer = setInterval(() => {
-                    const button_bold = document.querySelector("div.ol-cm-toolbar-button-group:nth-child(4)");
-                    const loader = document.querySelector('.loading-panel');
-                    const premiumBadges = document.querySelectorAll("#ol-cm-toolbar-wrapper > div.ol-cm-toolbar.toolbar-editor > div:nth-child(n+3):nth-child(-n+7)");
-                    if(premiumBadges.length > 0) counter += 1;
-                    if(premiumBadges.length > 2) counter_large += 1;
-                    counter_leak += 1;
-                    if ((!loader && button_bold !== null && button_bold.style.display === "" && (counter > 1 || premiumBadges.length > 2)) || counter_large > 8 || counter > 8) {
-                        clearInterval(timer);
-                        resolve();
-                    } else if (premiumBadges.length > 2) {
-                        counter = 0;
-                    }
-                    if(counter_leak > 88) {
+                    if (!document.querySelector('.loading-panel')) {
                         clearInterval(timer);
                         resolve();
                     }
@@ -556,38 +547,31 @@
             };
         }
 
-        // --- Initialization ---
         const debouncedMount = debounce(mountButtons, 500);
-
-        const observer = new MutationObserver((mutations) => {
+        const observer = new MutationObserver(() => {
             debouncedMount();
-            initGitPanel();
+            const sidebar = document.querySelector('.ide-rail-tabs-wrapper');
+            if (sidebar) initGitPanel('overleaf', sidebar);
         });
 
-        // observe the tree-inner
-        const targetNode = document.querySelector("#ide-redesign-file-tree > div > div.file-tree-inner");
-        if (targetNode) {
-            observer.observe(targetNode, { childList: true, subtree: true });
-        }
+        const targetNode = document.querySelector("#ide-redesign-file-tree > div > div.file-tree-inner") || document.body;
+        if (targetNode) observer.observe(targetNode, { childList: true, subtree: true });
 
-        // For Git Panel: wait until sidebar is done.
-        waitForElement('.ide-rail-tabs-wrapper', () => {
-            initGitPanel();
-        });
-
+        waitForElement('.ide-rail-tabs-wrapper', (sidebar) => initGitPanel('overleaf', sidebar));
         mountButtons();
         debouncedMount();
     }
 
     // ==========================================
-    // LOGIC 2: TEXPAGE (Unchanged)
+    // LOGIC 2: TEXPAGE
     // ==========================================
     function initTexPage() {
         const SELECTORS = {
             TOOLBAR: '.editor-actions',
             HEADER: '.project-header',
             LINENUMS: '.cm-gutters',
-            SIDEBAR_TARGET: '.cm-gutter-lint'
+            SIDEBAR_TARGET: '.cm-gutter-lint',
+            MENU: '.project-menu'
         };
         const BUTTON_CLASS = 'tp-zen-button';
 
@@ -608,31 +592,25 @@
             style.appendChild(document.createTextNode(css));
             head.appendChild(style);
         }
-
         injectStyles(customCSS);
 
         function triggerResizePulse() {
-            setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 100);
-            setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 500);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 500);
         }
 
         function toggleDisplay(selector) {
             const els = document.querySelectorAll(selector);
             els.forEach(el => {
-                if (el.style.display === 'none') {
-                    el.style.removeProperty('display');
-                } else {
-                    el.style.setProperty('display', 'none', 'important');
-                }
+                if (el.style.display === 'none') el.style.removeProperty('display');
+                else el.style.setProperty('display', 'none', 'important');
             });
             triggerResizePulse();
         }
 
         function forceHide(selector) {
             const els = document.querySelectorAll(selector);
-            els.forEach(el => {
-                el.style.setProperty('display', 'none', 'important');
-            });
+            els.forEach(el => el.style.setProperty('display', 'none', 'important'));
         }
 
         function toggleFullScreen() {
@@ -651,14 +629,9 @@
         function createButton(iconHtml, title, onClick) {
             const btn = document.createElement('button');
             btn.appendChild(parseSvg(iconHtml));
-
             btn.title = title;
             btn.className = BUTTON_CLASS;
-            btn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onClick(btn);
-            };
+            btn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(btn); };
             return btn;
         }
 
@@ -674,11 +647,29 @@
             buttons.forEach(btn => toolbar.appendChild(btn));
             setTimeout(() => { forceHide(SELECTORS.SIDEBAR_TARGET); }, 1000);
         });
+
+        // --- Mount Git Panel for TexPage ---
+        waitForElement(SELECTORS.MENU, (menu) => {
+            const items = Array.from(menu.children);
+            const syncItem = items.find(li => li.textContent.includes('Sync') || li.querySelector('.icon-cloud-sync'));
+            if (syncItem) {
+                let dropdown = syncItem.querySelector('ul');
+                if (dropdown) {
+                    initGitPanel('texpage', dropdown);
+                } else {
+                    const observer = new MutationObserver(() => {
+                        dropdown = syncItem.querySelector('ul');
+                        if(dropdown) {
+                            initGitPanel('texpage', dropdown);
+                            observer.disconnect();
+                        }
+                    });
+                    observer.observe(syncItem, { childList: true, subtree: true });
+                }
+            }
+        });
     }
 
-    // ==========================================
-    // ROUTER
-    // ==========================================
     const host = window.location.hostname;
     if (host.includes('overleaf.com')) {
         waitForElement('.toolbar-editor', initOverleaf);
