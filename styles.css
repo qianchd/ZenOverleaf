@@ -107,6 +107,7 @@
     justify-content: center;
     width: 24px;
     height: 24px;
+    margin: 0 auto;
 }
 /* 选中状态（模仿原生 .active 类） */
 a.ide-rail-tab-link.active .ol-mygit-rail-icon-container {
