@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ZenOverleaf",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Zen mode for Overleaf with Git Sync",
   "icons": {
     "32": "icon.png",
