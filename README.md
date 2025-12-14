@@ -46,7 +46,8 @@ Whether you are drafting a thesis, a research paper, or a resume, ZenOverleaf he
 ### Have a look:
 
 #### Git Panel
-<img width="2509" height="1612" alt="图片" src="https://github.com/user-attachments/assets/3351471b-944d-4676-a1b5-868c34a0a2e1"/>
+<img width="1259" height="839" alt="图片" src="https://github.com/user-attachments/assets/3351471b-944d-4676-a1b5-868c34a0a2e1"/>
+<img width="625" height="379" alt="图片" src="https://github.com/user-attachments/assets/e84b7ddc-81f8-4d3c-861c-bc6e447e5d44" />
 
 
 #### Toggle everything
