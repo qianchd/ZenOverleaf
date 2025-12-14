@@ -105,6 +105,12 @@
         content.appendChild(createInput('Username (Required for CNB/Gitee)', 'ol-mygit-username', 'e.g. cnb'));
         content.appendChild(createInput('Token (PAT)', 'ol-mygit-token', 'Access Token', 'password'));
 
+        // [Feature] Custom Commit Message (Not saved to storage)
+        content.appendChild(createInput('Commit Message (Optional)', 'ol-mygit-commit-msg', 'Default: Platform Sync + Time'));
+
+        // [Feature] Custom Proxy (Saved to storage)
+        content.appendChild(createInput('CORS Proxy (Optional)', 'ol-mygit-proxy', 'Default: Auto-select (Custom/Workers/Official)'));
+
         // Auto Sync
         const autoSyncContainer = document.createElement('div');
         autoSyncContainer.style.cssText = 'display:flex; gap:10px; align-items:center; margin-bottom:10px; font-size:12px;';
@@ -185,7 +191,7 @@
 
         document.getElementById('ol-mygit-close-btn').onclick = () => togglePanel();
 
-        // --- Core Sync Logic (Updated for TexPage URL parsing) ---
+        // --- Core Sync Logic (Updated) ---
         let isSyncing = false;
         let autoSyncTimer = null;
 
@@ -199,6 +205,11 @@
             let branch = document.getElementById('ol-mygit-branch').value.trim();
             const username = document.getElementById('ol-mygit-username').value.trim();
             const token = document.getElementById('ol-mygit-token').value.trim();
+
+            // Get Custom inputs
+            const customCommitMsg = document.getElementById('ol-mygit-commit-msg').value.trim();
+            const customProxy = document.getElementById('ol-mygit-proxy').value.trim();
+
             const btn = document.getElementById('ol-mygit-sync-btn');
 
             if (!repo || !token) {
@@ -215,10 +226,14 @@
                 updateStatus('Auto Syncing...', '#007bff');
             }
 
+            // Save settings (EXCLUDING commitMsg)
             const autoSyncCheck = document.getElementById('ol-mygit-autosync-check').checked;
             const intervalVal = document.getElementById('ol-mygit-interval').value;
             const saveObj = {};
-            saveObj[STORAGE_KEY_PROJECT] = { repo, branch, username, token, autoSync: autoSyncCheck, interval: intervalVal };
+            saveObj[STORAGE_KEY_PROJECT] = { repo, branch, username, token, autoSync: autoSyncCheck, interval: intervalVal,
+                // commitMsg: NOT SAVED
+                proxy: customProxy
+            };
             chrome.storage.local.set(saveObj);
 
             const DB_NAME = `ol-git-mem-${Date.now()}`;
@@ -237,15 +252,43 @@
                 await git.init({ fs: FS, dir: dir });
                 await git.addRemote({ fs: FS, dir: dir, remote: 'origin', url: repo, force: true });
 
-                // 2. Discover Remote
+                // 2. Discover Remote & Determine Proxy
+                let proxyList = [];
+                if (customProxy) {
+                    proxyList = [customProxy];
+                } else {
+                    proxyList = [
+                        'https://gitcors4516.qianchd.workers.dev',
+                        'https://cors.isomorphic-git.org'
+                    ];
+                }
+
                 if(!isAuto) updateStatus('Checking remote...', '#007bff');
+
                 let remoteRefs = [];
-                try {
-                    remoteRefs = await git.listServerRefs({
-                        http: git.http, url: repo, prefix: 'refs/heads',
-                        corsProxy: 'https://gitcors4516.qianchd.workers.dev', onAuth: authCallback
-                    });
-                } catch (e) { console.warn("List refs warning:", e); }
+                let activeProxy = proxyList[0];
+                let connectSuccess = false;
+
+                // Loop through proxies
+                for (const proxyUrl of proxyList) {
+                    try {
+                        console.log(`[Git Sync] Trying proxy: ${proxyUrl}`);
+                        remoteRefs = await git.listServerRefs({
+                            http: git.http, url: repo, prefix: 'refs/heads',
+                            corsProxy: proxyUrl,
+                            onAuth: authCallback
+                        });
+                        activeProxy = proxyUrl;
+                        connectSuccess = true;
+                        break;
+                    } catch (e) {
+                        console.warn(`[Git Sync] Proxy ${proxyUrl} failed:`, e);
+                    }
+                }
+
+                if (!connectSuccess && !isAuto) {
+                    console.warn("Could not list remote refs with any proxy.");
+                }
 
                 const targetRef = `refs/heads/${branch}`;
                 const hasBranch = remoteRefs.find(r => r.ref === targetRef);
@@ -262,7 +305,8 @@
                     if(!isAuto) updateStatus('Fetching...', '#007bff');
                     await git.fetch({
                         fs: FS, http: git.http, dir: dir, remote: 'origin', ref: branch,
-                        corsProxy: 'https://gitcors4516.qianchd.workers.dev', onAuth: authCallback,
+                        corsProxy: activeProxy,
+                        onAuth: authCallback,
                         depth: 1, singleBranch: true
                     });
                     await git.checkout({ fs: FS, dir: dir, ref: branch, force: true });
@@ -270,7 +314,7 @@
                     await git.branch({ fs: FS, dir: dir, ref: branch, checkout: true });
                 }
 
-                // 4. Download (TexPage: Extract IDs from URL)
+                // 4. Download (Platform specific)
                 if(!isAuto) updateStatus('Downloading ZIP...', '#007bff');
                 let dlUrl;
 
@@ -348,10 +392,15 @@
                 // 6. Commit & Diff
                 if(!isAuto) updateStatus('Committing...', '#007bff');
                 await git.add({ fs: FS, dir: dir, filepath: '.' });
+
+                // Use Custom Commit Message or Default
+                const defaultMsg = `${platform === 'overleaf' ? 'Overleaf' : 'TexPage'} Sync ${isAuto ? '(Auto)' : ''}: ${new Date().toLocaleString()}`;
+                const finalMsg = customCommitMsg ? customCommitMsg : defaultMsg;
+
                 const commitSha = await git.commit({
                     fs: FS, dir: dir,
-                    message: `${platform === 'overleaf' ? 'Overleaf' : 'TexPage'} Sync ${isAuto ? '(Auto)' : ''}: ${new Date().toLocaleString()}`,
-                    author: { name: 'Bot', email: 'bot@example.com' }
+                    message: finalMsg,
+                    author: { name: 'Bot', email: 'bot@qstat.site' }
                 });
 
                 // Diff Check
@@ -373,11 +422,12 @@
                     return;
                 }
 
-                // 7. Push
+                // 7. Push (Use activeProxy)
                 if(!isAuto) updateStatus('Pushing...', '#007bff');
                 await git.push({
                     fs: FS, http: git.http, dir: dir, remote: 'origin', ref: branch,
-                    force: true, onAuth: authCallback, corsProxy: 'https://gitcors4516.qianchd.workers.dev',
+                    force: true, onAuth: authCallback,
+                    corsProxy: activeProxy
                 });
 
                 updateStatus(`Success: ${new Date().toLocaleTimeString()}`, '#28a745');
@@ -412,7 +462,9 @@
                 username: document.getElementById('ol-mygit-username').value,
                 token: document.getElementById('ol-mygit-token').value,
                 autoSync: document.getElementById('ol-mygit-autosync-check').checked,
-                interval: document.getElementById('ol-mygit-interval').value
+                interval: document.getElementById('ol-mygit-interval').value,
+                // commitMsg: NOT SAVED
+                proxy: document.getElementById('ol-mygit-proxy').value
             };
             chrome.storage.local.set(saveObj);
         });
@@ -425,6 +477,8 @@
                 if(conf.branch) document.getElementById('ol-mygit-branch').value = conf.branch;
                 if(conf.username) document.getElementById('ol-mygit-username').value = conf.username;
                 if(conf.token) document.getElementById('ol-mygit-token').value = conf.token;
+                // do not load commitMsg
+                if(conf.proxy) document.getElementById('ol-mygit-proxy').value = conf.proxy;
                 if(conf.autoSync) {
                     document.getElementById('ol-mygit-autosync-check').checked = true;
                     manageAutoSync();
