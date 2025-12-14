@@ -100,7 +100,7 @@
             return group;
         };
 
-        content.appendChild(createInput('Repo URL (.git)', 'ol-mygit-repo', 'https://cnb.cool/user/repo.git'));
+        content.appendChild(createInput('Repo URL (.git)', 'ol-mygit-repo', 'e.g., https://github.com/{user}/{repo}.git'));
         content.appendChild(createInput('Branch', 'ol-mygit-branch', '', 'text', 'main'));
         content.appendChild(createInput('Username (Required for CNB/Gitee)', 'ol-mygit-username', 'e.g. cnb'));
         content.appendChild(createInput('Token (PAT)', 'ol-mygit-token', 'Access Token', 'password'));
