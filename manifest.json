@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ZenOverleaf",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Zen mode for Overleaf with Git Sync",
   "icons": {
     "32": "icon.png",
@@ -31,6 +31,13 @@
         "libs/lightning-fs.min.js",
         "libs/jszip.min.js",
         "libs/isomorphic-git-http.min.js",
+
+        "modules/constants.js",
+        "modules/utils.js",
+        "modules/git_logic.js",
+        "modules/overleaf.js",
+        "modules/texpage.js",
+
         "content.js"
       ],
       "css": ["styles.css"]
