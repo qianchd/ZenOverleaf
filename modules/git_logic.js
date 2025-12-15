@@ -1,6 +1,50 @@
 window.Zen = window.Zen || {};
 
 window.Zen.Git = {
+    // [新增] 辅助函数：获取 Overleaf 服务端精准时间
+    getProjectLastUpdated: async function(projectId) {
+        try {
+            console.log("[ZenOverleaf] Fetching Dashboard for meta data...");
+            const response = await fetch('/project', { credentials: 'include' });
+            const htmlText = await response.text();
+
+            // 1. 创建一个临时的 DOM 解析器来安全地解析 HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlText, "text/html");
+
+            // 2. 查找包含项目数据的 meta 标签
+            // <meta name="ol-prefetchedProjectsBlob" ... content="{...}">
+            const meta = doc.querySelector('meta[name="ol-prefetchedProjectsBlob"]');
+
+            if (!meta) {
+                console.warn("[ZenOverleaf] Meta tag 'ol-prefetchedProjectsBlob' not found.");
+                return 0;
+            }
+
+            // 3. 解析 JSON 内容
+            const jsonContent = meta.getAttribute('content');
+            const data = JSON.parse(jsonContent);
+
+            if (data && data.projects && Array.isArray(data.projects)) {
+                // 4. 在数组中查找当前 Project ID
+                const project = data.projects.find(p => p.id === projectId);
+
+                if (project && project.lastUpdated) {
+                    const date = new Date(project.lastUpdated);
+                    console.log(`[ZenOverleaf] Found Time in Meta: ${date.toLocaleString()}`);
+                    return date.getTime();
+                }
+            }
+
+            console.warn(`[ZenOverleaf] Project ${projectId} not found in dashboard list.`);
+            return 0;
+
+        } catch (e) {
+            console.error("[ZenOverleaf] Meta Parse Error:", e);
+            return 0;
+        }
+    },
+
     init: function(platform, mountPoint) {
         const linkId = `ol-mygit-trigger-${platform}`;
         if (document.getElementById(linkId)) return;
@@ -11,7 +55,6 @@ window.Zen.Git = {
             const parts = window.location.pathname.split('/');
             if(parts.length > 2) projectId = parts[2];
         } else if (platform === 'texpage') {
-            // Try to grab UUID from URL if present, else use slug
             const match = window.location.pathname.match(/([0-9a-fA-F-]{36})/);
             projectId = match ? match[1] : window.location.pathname.replace(/^\/|\/$/g, '').replace(/\//g, '_');
         }
@@ -20,7 +63,6 @@ window.Zen.Git = {
         // --- 1. Create Panel ---
         const panel = document.createElement('div');
         panel.className = 'ol-mygit-panel';
-
         if (platform === 'texpage') {
             panel.style.left = 'unset';
             panel.style.right = '280px';
@@ -67,14 +109,9 @@ window.Zen.Git = {
         content.appendChild(createInput('Branch', 'ol-mygit-branch', '', 'text', 'main'));
         content.appendChild(createInput('Username (Required for CNB/Gitee)', 'ol-mygit-username', 'e.g. cnb'));
         content.appendChild(createInput('Token (PAT)', 'ol-mygit-token', 'Access Token', 'password'));
-
-        // [Feature] Custom Commit Message (Not saved to storage)
         content.appendChild(createInput('Commit Message (Optional)', 'ol-mygit-commit-msg', 'Default: Platform Sync + Time'));
-
-        // [Feature] Custom Proxy (Saved to storage)
         content.appendChild(createInput('CORS Proxy (Optional)', 'ol-mygit-proxy', 'Default: Auto-select (Custom/Workers/Official)'));
 
-        // Auto Sync
         const autoSyncContainer = document.createElement('div');
         autoSyncContainer.style.cssText = 'display:flex; gap:10px; align-items:center; margin-bottom:10px; font-size:12px;';
         const checkboxLabel = document.createElement('label');
@@ -97,12 +134,28 @@ window.Zen.Git = {
         autoSyncContainer.appendChild(document.createTextNode(' mins'));
         content.appendChild(autoSyncContainer);
 
-        // Button & Status
+        // --- [修改] Button Group (Push + Pull) ---
+        const btnGroup = document.createElement('div');
+        btnGroup.style.display = 'flex'; btnGroup.style.gap = '10px'; btnGroup.style.marginBottom = '10px';
+
         const syncBtn = document.createElement('button');
         syncBtn.className = 'ol-mygit-btn';
         syncBtn.id = 'ol-mygit-sync-btn';
-        syncBtn.textContent = 'Sync Now';
-        content.appendChild(syncBtn);
+        syncBtn.textContent = 'Push (Backup)';
+        syncBtn.style.flex = '1';
+
+        const pullBtn = document.createElement('button');
+        pullBtn.className = 'ol-mygit-btn';
+        pullBtn.id = 'ol-mygit-pull-btn';
+        pullBtn.textContent = 'Pull (Diff)';
+        pullBtn.style.flex = '1';
+        pullBtn.style.backgroundColor = '#6f42c1'; // Purple
+        pullBtn.onclick = () => window.Zen.GitPull.perform(platform, projectId);
+
+        btnGroup.appendChild(syncBtn);
+        btnGroup.appendChild(pullBtn);
+        content.appendChild(btnGroup);
+        // --- [修改结束] ---
 
         const statusDiv = document.createElement('div');
         statusDiv.className = 'ol-mygit-status';
@@ -154,7 +207,7 @@ window.Zen.Git = {
 
         document.getElementById('ol-mygit-close-btn').onclick = () => togglePanel();
 
-        // --- Core Sync Logic (Updated) ---
+        // --- Core Sync Logic (Original + Time Check) ---
         let isSyncing = false;
         let autoSyncTimer = null;
 
@@ -162,17 +215,16 @@ window.Zen.Git = {
             const el = document.getElementById('ol-mygit-status');
             if(el) { el.textContent = msg; el.style.color = color; }
         };
+        // Expose updateStatus for Pull module
+        window.Zen.Git.updateStatus = updateStatus;
 
         const performSync = async (isAuto = false) => {
             const repo = document.getElementById('ol-mygit-repo').value.trim();
             let branch = document.getElementById('ol-mygit-branch').value.trim();
             const username = document.getElementById('ol-mygit-username').value.trim();
             const token = document.getElementById('ol-mygit-token').value.trim();
-
-            // Get Custom inputs
             const customCommitMsg = document.getElementById('ol-mygit-commit-msg').value.trim();
             const customProxy = document.getElementById('ol-mygit-proxy').value.trim();
-
             const btn = document.getElementById('ol-mygit-sync-btn');
 
             if (!repo || !token) {
@@ -189,20 +241,18 @@ window.Zen.Git = {
                 updateStatus('Auto Syncing...', '#007bff');
             }
 
-            // Save settings (EXCLUDING commitMsg)
+            // Save settings
             const autoSyncCheck = document.getElementById('ol-mygit-autosync-check').checked;
             const intervalVal = document.getElementById('ol-mygit-interval').value;
             const saveObj = {};
-            saveObj[STORAGE_KEY_PROJECT] = { repo, branch, username, token, autoSync: autoSyncCheck, interval: intervalVal,
-                // commitMsg: NOT SAVED
-                proxy: customProxy
-            };
+            saveObj[STORAGE_KEY_PROJECT] = { repo, branch, username, token, autoSync: autoSyncCheck, interval: intervalVal, proxy: customProxy };
             chrome.storage.local.set(saveObj);
 
             const DB_NAME = `ol-git-mem-${Date.now()}`;
 
             try {
                 if (typeof git === 'undefined' || typeof LightningFS === 'undefined') throw new Error("Libs missing");
+                // [CRITICAL] Ensure git.http is assigned as in original code
                 if (typeof GitHttp !== 'undefined') git.http = GitHttp;
 
                 const FS = new LightningFS(DB_NAME);
@@ -215,7 +265,7 @@ window.Zen.Git = {
                 await git.init({ fs: FS, dir: dir });
                 await git.addRemote({ fs: FS, dir: dir, remote: 'origin', url: repo, force: true });
 
-                // 2. Discover Remote & Determine Proxy
+                // 2. Discover Remote & Determine Proxy (Original Logic)
                 let proxyList = [];
                 if (customProxy) {
                     proxyList = [customProxy];
@@ -264,14 +314,24 @@ window.Zen.Git = {
                 }
 
                 // 3. Fetch/Checkout
+                let remoteTime = 0; // [新增] 用于存储远程时间
+
                 if (hasBranch) {
                     if(!isAuto) updateStatus('Fetching...', '#007bff');
+                    // Original Fetch
                     await git.fetch({
                         fs: FS, http: git.http, dir: dir, remote: 'origin', ref: branch,
                         corsProxy: activeProxy,
                         onAuth: authCallback,
                         depth: 1, singleBranch: true
                     });
+
+                    // [插入] 获取远程时间 (仅在 Fetch 成功后执行)
+                    try {
+                        const commits = await git.log({ fs: FS, dir: dir, ref: `origin/${branch}`, depth: 1 });
+                        if (commits && commits.length > 0) remoteTime = commits[0].commit.committer.timestamp * 1000;
+                    } catch(e) {}
+
                     await git.checkout({ fs: FS, dir: dir, ref: branch, force: true });
                 } else {
                     await git.branch({ fs: FS, dir: dir, ref: branch, checkout: true });
@@ -284,54 +344,54 @@ window.Zen.Git = {
                 if (platform === 'overleaf') {
                     dlUrl = `https://www.overleaf.com/project/${projectId}/download/zip`;
                 } else {
-                    // --- TexPage ID Extraction Strategy ---
+                    // TexPage ID Extraction
                     let pKey, vNo;
-
-                    // Priority 1: Extract from URL (e.g. /project/user/UUID/UUID)
                     const urlMatch = window.location.pathname.match(/\/([0-9a-fA-F-]{36})\/([0-9a-fA-F-]{36})/);
                     if (urlMatch) {
                         pKey = urlMatch[1];
                         vNo = urlMatch[2];
-                        console.log(`[Git Sync] Extracted from URL: P=${pKey}, V=${vNo}`);
                     } else {
-                        // Priority 2: Fallback to scraping page source (for vanity URLs)
-                        console.log("[Git Sync] URL regex failed, scanning source...");
                         const html = document.documentElement.innerHTML;
                         const pMatch = html.match(/"projectKey"\s*:\s*"([0-9a-fA-F-]+)"/);
-                        const vMatch = html.match(/"versionNo"\s*:\s*"([0-9a-fA-F-]+)"/) || html.match(/"versionId"\s*:\s*"([0-9a-fA-F-]+)"/);
+                        const vMatch = html.match(/"versionNo"\s*:\s*"([0-9a-fA-F-]+)"/);
                         if (pMatch) pKey = pMatch[1];
                         if (vMatch) vNo = vMatch[1];
                     }
-
-                    if (!pKey || !vNo) {
-                        throw new Error("Could not find ProjectKey or VersionNo. Please ensure you are inside a project editor.");
-                    }
-
                     dlUrl = `https://www.texpage.com/api/project/download?projectKey=${pKey}&versionNo=${vNo}&bbl=false`;
                 }
 
                 const resp = await fetch(dlUrl, { method: 'GET', credentials: 'include' });
                 if(!resp.ok) throw new Error(`Download failed: ${resp.status}`);
 
-                // Content Type check
-                const cType = resp.headers.get('content-type');
-                if (cType && cType.includes('application/json')) {
-                    const json = await resp.json();
-                    if (json.status && json.status.code !== 200) {
-                        throw new Error(`API Error: ${json.status.message} (${json.status.code})`);
-                    }
-                    throw new Error("Got JSON but expected ZIP. Check console.");
-                }
-
                 const blob = await resp.blob();
                 if (blob.size < 100) throw new Error("File too small");
 
+                // [保持原样] 使用 Base64 读取逻辑
                 const base64String = await new Promise((resolve) => {
                     const r = new FileReader();
                     r.onload = () => resolve(r.result.split(',')[1]);
                     r.readAsDataURL(blob);
                 });
                 const zip = await JSZip.loadAsync(base64String, { base64: true });
+
+                // [插入] 检查是否与远程冲突 (Time Check)
+                if (remoteTime > 0 && !isAuto) {
+                    let localTime = await window.Zen.Git.getProjectLastUpdated(projectId);
+                    console.log("#######################################")
+                    console.log(localTime)
+                    console.log("#######################################")
+                    // 2秒缓冲：如果远程时间明显晚于本地 Overleaf 最后保存时间
+                    if (localTime > 0 && remoteTime > localTime + 2000) {
+                        const rDate = new Date(remoteTime).toLocaleString();
+                        const lDate = new Date(localTime).toLocaleString();
+                        const msg = `⚠️ WARNING: Remote Conflict!\n\nRemote (${rDate}) is NEWER than Overleaf (${lDate}).\nOverwrite?`;
+                        if (!confirm(msg)) {
+                            updateStatus('Push Cancelled', 'orange');
+                            try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
+                            return;
+                        }
+                    }
+                }
 
                 // 5. Extract
                 if(!isAuto) updateStatus('Extracting...', '#007bff');
@@ -356,7 +416,6 @@ window.Zen.Git = {
                 if(!isAuto) updateStatus('Committing...', '#007bff');
                 await git.add({ fs: FS, dir: dir, filepath: '.' });
 
-                // Use Custom Commit Message or Default
                 const defaultMsg = `${platform === 'overleaf' ? 'Overleaf' : 'TexPage'} Sync ${isAuto ? '(Auto)' : ''}: ${new Date().toLocaleString()}`;
                 const finalMsg = customCommitMsg ? customCommitMsg : defaultMsg;
 
@@ -426,13 +485,12 @@ window.Zen.Git = {
                 token: document.getElementById('ol-mygit-token').value,
                 autoSync: document.getElementById('ol-mygit-autosync-check').checked,
                 interval: document.getElementById('ol-mygit-interval').value,
-                // commitMsg: NOT SAVED
                 proxy: document.getElementById('ol-mygit-proxy').value
             };
             chrome.storage.local.set(saveObj);
         });
 
-        // Load Config
+        // Load Config (Original)
         if (chrome && chrome.storage && chrome.storage.local) {
             chrome.storage.local.get([STORAGE_KEY_PROJECT], function(result) {
                 const conf = result[STORAGE_KEY_PROJECT] || {};
@@ -440,7 +498,6 @@ window.Zen.Git = {
                 if(conf.branch) document.getElementById('ol-mygit-branch').value = conf.branch;
                 if(conf.username) document.getElementById('ol-mygit-username').value = conf.username;
                 if(conf.token) document.getElementById('ol-mygit-token').value = conf.token;
-                // do not load commitMsg
                 if(conf.proxy) document.getElementById('ol-mygit-proxy').value = conf.proxy;
                 if(conf.autoSync) {
                     document.getElementById('ol-mygit-autosync-check').checked = true;

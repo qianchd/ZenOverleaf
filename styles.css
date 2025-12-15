@@ -130,3 +130,57 @@
 a.ide-rail-tab-link.active .ol-mygit-rail-icon-container {
     color: #3b9c3b; /* Overleaf Green */
 }
+
+
+/* --- Diff Modal Styles (Append to end) --- */
+.ol-diff-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); z-index: 10001;
+    display: none; align-items: center; justify-content: center;
+}
+.ol-diff-container {
+    background: #fff; width: 90%; max-width: 1000px; height: 85%;
+    border-radius: 8px; display: flex; flex-direction: column;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3); font-family: sans-serif;
+}
+.ol-diff-header {
+    padding: 15px; border-bottom: 1px solid #ddd; background: #f8f9fa;
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: bold; border-radius: 8px 8px 0 0; color: #333;
+}
+.ol-diff-body { flex: 1; display: flex; overflow: hidden; }
+.ol-diff-list {
+    width: 30%; border-right: 1px solid #ddd; overflow-y: auto; background: #fafafa;
+}
+.ol-diff-item {
+    padding: 12px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 13px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.ol-diff-item:hover { background: #eef; }
+.ol-diff-item.active { background: #e3f2fd; border-left: 4px solid #007bff; }
+.ol-diff-badge { padding: 3px 6px; border-radius: 4px; font-size: 10px; color: #fff; font-weight: bold; text-transform: uppercase; }
+.ol-diff-badge.mod { background: #ffc107; color: #333; }
+.ol-diff-badge.new { background: #28a745; }
+.ol-diff-badge.del { background: #dc3545; }
+
+.ol-diff-viewer {
+    width: 70%; padding: 15px; overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', monospace; font-size: 12px;
+    white-space: pre-wrap; background: #fff; line-height: 1.5;
+}
+.diff-added { background-color: #e6ffec; color: #24292e; display: block; }
+.diff-removed { background-color: #ffebe9; color: #24292e; text-decoration: line-through; opacity: 0.8; display: block; }
+.diff-normal { color: #666; }
+
+.ol-diff-footer {
+    padding: 15px; border-top: 1px solid #ddd; background: #f8f9fa;
+    display: flex; justify-content: space-between; align-items: center;
+    border-radius: 0 0 8px 8px;
+}
+.ol-diff-apply-btn {
+    padding: 10px 20px; background: #007bff; color: #fff;
+    border: none; border-radius: 4px; cursor: pointer;
+    font-weight: bold; transition: background 0.2s;
+}
+.ol-diff-apply-btn:hover { background: #0056b3; }
+.ol-diff-apply-btn:disabled { background: #6c757d; cursor: not-allowed; opacity: 0.7; }

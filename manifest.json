@@ -31,16 +31,24 @@
         "libs/lightning-fs.min.js",
         "libs/jszip.min.js",
         "libs/isomorphic-git-http.min.js",
-
+        "libs/jsdiff.min.js",
         "modules/constants.js",
         "modules/utils.js",
-        "modules/git_logic.js",
+        "modules/diff_ui.js",       // Renamed from ui.js
+        "modules/git_logic_pull.js", // New Pull logic
+        "modules/git_logic.js",      // Main logic (Push/Init)
         "modules/overleaf.js",
         "modules/texpage.js",
 
         "content.js"
       ],
       "css": ["styles.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["page_script.js"],
+      "matches": ["https://www.overleaf.com/*", "https://www.texpage.com/*"]
     }
   ]
 }
