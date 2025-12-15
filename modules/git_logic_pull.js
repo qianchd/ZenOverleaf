@@ -7,29 +7,29 @@ window.Zen.FileTree = {
     currentChanges: [],
     observer: null,
     FS: null,
-    _renderTimer: null, // 防抖定时器
+    _renderTimer: null, // Debounce timer
 
-    // 入口：渲染标记
+    // Entry point: Render markers
     renderMarkers: function(changes, FS) {
         this.currentChanges = changes;
         this.FS = FS;
         console.log("[ZenOverleaf] FileTree: Rendering markers...", changes.map(c => c.file));
 
-        // 1. 首次渲染
+        // 1. Initial render
         this.refreshAll();
 
-        // 2. 启动监听
+        // 2. Start listener
         this.startObserver();
     },
 
-    // 统一刷新逻辑
+    // Unified refresh logic
     refreshAll: function() {
         const matchedFiles = new Set();
 
-        // 1. 渲染常规图标 (标记已有文件)
+        // 1. Render regular icons (mark existing files)
         this.applyMarkers(matchedFiles);
 
-        // 2. 渲染幽灵文件 (只渲染那些没有被匹配到的 new 文件)
+        // 2. Render ghost files (only render new files that were not matched)
         const ghostFiles = this.currentChanges.filter(c => !matchedFiles.has(c.file) && c.status === 'new');
         this.renderGhosts(ghostFiles);
     },
@@ -46,7 +46,7 @@ window.Zen.FileTree = {
     startObserver: function() {
         if (this.observer) this.observer.disconnect();
 
-        // 监听文件树容器
+        // Listen to file tree container
         const listRoot = document.querySelector('.file-tree-folder-list-inner') ||
                          document.querySelector('.file-tree-list') ||
                          document.querySelector('.file-tree-inner');
@@ -54,42 +54,17 @@ window.Zen.FileTree = {
         if (!listRoot) return;
 
         this.observer = new MutationObserver((mutations) => {
-            // [关键] 过滤掉我们自己的变动，防止死循环
-            let isRelevant = false;
-            for (const m of mutations) {
-                if (m.type === 'childList') {
-                    const added = Array.from(m.addedNodes);
-                    const removed = Array.from(m.removedNodes);
-
-                    const isSelf = (nodes) => nodes.some(n =>
-                        n.classList && (
-                            n.classList.contains('zen-git-status-icon') ||
-                            n.classList.contains('zen-ghost-node') // 过滤幽灵节点
-                        )
-                    );
-
-                    // 只有当变动包含非我们自己的元素时，才视为有效变动
-                    if (!isSelf(added) && !isSelf(removed)) {
-                        isRelevant = true;
-                        break;
-                    }
-                }
-            }
-
-            // 只有相关变动才触发重绘 (配合防抖)
-            // 但为了保险（防止Overleaf暴力重绘），我们这里只依赖 timer 防抖，不做强过滤，
-            // 只要 disconnect 机制在，就不会死循环。
-
+            // Filter out our own changes to prevent infinite loop
             if (this._renderTimer) clearTimeout(this._renderTimer);
 
             this._renderTimer = setTimeout(() => {
-                // 1. 暂停监听 (关键步骤)
+                // 1. Pause listening (critical step)
                 this.observer.disconnect();
 
-                // 2. 执行渲染
+                // 2. Execute rendering
                 this.refreshAll();
 
-                // 3. 恢复监听
+                // 3. Resume listening
                 this.observer.observe(listRoot, { childList: true, subtree: true });
             }, 100);
         });
@@ -111,9 +86,13 @@ window.Zen.FileTree = {
 
                 if (match) {
                     const existingIcon = item.querySelector('.zen-git-status-icon');
+
+                    // Unified symbol: New and Modified files both use 'M'
+                    const targetSymbol = (match.status === 'del' ? '−' : 'M');
+
                     if (existingIcon) {
-                        // 如果已存在且状态一致，直接标记为已处理
-                        if (existingIcon.textContent === (match.status === 'new' ? '+' : (match.status === 'del' ? '−' : 'M'))) {
+                        // If icon exists and status is the same, mark as processed and skip (performance optimization)
+                        if (existingIcon.textContent === targetSymbol) {
                             matchedSet.add(match.file);
                             return;
                         }
@@ -129,35 +108,34 @@ window.Zen.FileTree = {
         });
     },
 
-    // [修改] 直接插入文件树的 Ghost 渲染
+    // Ghost rendering directly into the file tree
     renderGhosts: function(ghostFiles) {
-        // 1. 清理旧的幽灵节点
+        // 1. Clear old ghost nodes
         document.querySelectorAll('.zen-ghost-node').forEach(el => el.remove());
 
         if (ghostFiles.length === 0) return;
 
-        // 2. 找到文件列表容器 (ul)
-        // 尝试找到根目录列表
+        // 2. Find file list container (ul)
         const listContainer = document.querySelector('.file-tree-list') ||
                               document.querySelector('.file-tree-folder-list-inner');
 
         if (!listContainer) return;
 
-        // 3. 创建并插入节点
-        // 我们反向遍历，这样使用 prepend 插入后顺序是正的
+        // 3. Create and insert nodes
+        // We iterate in reverse so that when using prepend, the final order is correct
         [...ghostFiles].reverse().forEach(change => {
             const li = document.createElement('li');
             li.className = 'zen-ghost-node';
-            // 模拟 Overleaf 的 role，虽然不完全一样，但有助于保持语义
             li.setAttribute('role', 'presentation');
             li.title = "This file is in Git but not Overleaf. Click to Copy Name.";
 
+            // Ghost files use 'M' symbol
             li.innerHTML = `
-                <span class="zen-ghost-icon">+</span>
+                <span class="zen-ghost-icon">M</span>
                 <span class="zen-ghost-name">${change.file}</span>
             `;
 
-            // 点击事件
+            // Click event
             li.onclick = (e) => {
                 e.stopPropagation();
 
@@ -174,7 +152,7 @@ window.Zen.FileTree = {
                 }
             };
 
-            // [策略] 插入到列表最前面，这样最显眼，且不影响文件夹层级逻辑
+            // Insert at the very beginning of the list
             listContainer.prepend(li);
         });
     },
@@ -199,12 +177,16 @@ window.Zen.FileTree = {
         const btn = document.createElement('span');
         btn.className = 'zen-git-status-icon';
 
-        if (change.status === 'new') btn.classList.add('zen-icon-new');
-        else if (change.status === 'del') btn.classList.add('zen-icon-del');
-        else btn.classList.add('zen-icon-mod');
+        // Unified symbols for new/mod files
+        if (change.status === 'del') {
+            btn.classList.add('zen-icon-del');
+            btn.textContent = '−'; // Deletions still use the minus sign
+        } else {
+            // New files and Modified files both use MOD style and 'M' symbol
+            btn.classList.add('zen-icon-mod');
+            btn.textContent = 'M';
+        }
 
-        let symbol = change.status === 'new' ? '+' : (change.status === 'del' ? '−' : 'M');
-        btn.textContent = symbol;
         btn.title = `Git: ${change.status.toUpperCase()} (Click to Review)`;
 
         btn.onclick = (e) => {
@@ -381,10 +363,17 @@ window.Zen.FileTree = {
 
                 const toast = document.createElement('div');
                 toast.className = 'zen-git-toast';
-                toast.innerHTML = `
-                    <div style="font-weight:bold;">Git Sync: ${changes.length} Changes</div>
-                    <div>Check file icons (+/M) to review.</div>
-                `;
+
+                // Safely insert dynamic content
+                const boldDiv = document.createElement('div');
+                boldDiv.style.fontWeight = 'bold';
+                boldDiv.textContent = `Git Sync: ${changes.length} Changes`;
+
+                const infoDiv = document.createElement('div');
+                infoDiv.textContent = 'Check file icons (M/−) to review.';
+
+                toast.appendChild(boldDiv);
+                toast.appendChild(infoDiv);
 
                 document.body.appendChild(toast);
                 setTimeout(() => {
