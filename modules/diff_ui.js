@@ -38,21 +38,27 @@ window.Zen.DiffUI = {
         }
     },
 
+    // [重构] 返回 DOM 元素而非 HTML 字符串
     formatDiff: function(diffText) {
-        if (!diffText) return '<div style="padding:15px; color:#666;">No content changes.</div>';
+        if (!diffText) {
+            const noContent = document.createElement('div');
+            noContent.style.cssText = 'padding:15px; color:#666;';
+            noContent.textContent = 'No content changes.';
+            return noContent;
+        }
 
         const lines = diffText.split('\n');
         let oldLineNum = 0;
         let newLineNum = 0;
 
-        const escapeHtml = (text) => {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        };
+        const table = document.createElement('table');
+        table.className = 'zen-diff-table';
 
-        let html = '<table class="zen-diff-table">';
-        html += '<colgroup><col class="zen-col-num"><col class="zen-col-num"><col></colgroup>';
+        const colgroup = document.createElement('colgroup');
+        colgroup.innerHTML = '<col class="zen-col-num"><col class="zen-col-num"><col>';
+        table.appendChild(colgroup);
+
+        const tbody = document.createElement('tbody');
 
         lines.forEach(line => {
             if (line.startsWith('Index:') || line.startsWith('+++') || line.startsWith('---') || line.startsWith('===')) {
@@ -66,18 +72,20 @@ window.Zen.DiffUI = {
                     oldLineNum = parseInt(match[1], 10) - 1;
                     newLineNum = parseInt(match[2], 10) - 1;
                 }
-                html += `
-                    <tr class="zen-row-header">
-                        <td colspan="3">${escapeHtml(line)}</td>
-                    </tr>
-                `;
+                const row = document.createElement('tr');
+                row.className = 'zen-row-header';
+                const cell = document.createElement('td');
+                cell.setAttribute('colspan', '3');
+                cell.textContent = line; // Safe: only static diff metadata
+                row.appendChild(cell);
+                tbody.appendChild(row);
                 return;
             }
 
             let rowClass = 'zen-row-normal';
             let oldNumStr = '';
             let newNumStr = '';
-            let content = escapeHtml(line);
+            let codeContent = line; // The content is the whole line
 
             if (line.startsWith('+')) {
                 newLineNum++;
@@ -94,17 +102,30 @@ window.Zen.DiffUI = {
                 newNumStr = newLineNum;
             }
 
-            html += `
-                <tr class="${rowClass} zen-diff-row">
-                    <td class="zen-diff-linenum">${oldNumStr}</td>
-                    <td class="zen-diff-linenum">${newNumStr}</td>
-                    <td class="zen-diff-code">${content}</td>
-                </tr>
-            `;
+            const row = document.createElement('tr');
+            row.className = `${rowClass} zen-diff-row`;
+
+            const oldNumCell = document.createElement('td');
+            oldNumCell.className = 'zen-diff-linenum';
+            oldNumCell.textContent = oldNumStr;
+
+            const newNumCell = document.createElement('td');
+            newNumCell.className = 'zen-diff-linenum';
+            newNumCell.textContent = newNumStr;
+
+            const contentCell = document.createElement('td');
+            contentCell.className = 'zen-diff-code';
+            contentCell.textContent = codeContent; // Safe: only text content
+
+            row.appendChild(oldNumCell);
+            row.appendChild(newNumCell);
+            row.appendChild(contentCell);
+
+            tbody.appendChild(row);
         });
 
-        html += '</table>';
-        return html;
+        table.appendChild(tbody);
+        return table;
     },
 
 
@@ -161,8 +182,11 @@ window.Zen.DiffUI = {
 
         const contentPlaceholder = document.createElement('div');
         contentPlaceholder.id = 'diff-content-placeholder';
-        // Use innerHTML here, as formatDiff ensures content is HTML-escaped.
-        contentPlaceholder.innerHTML = this.formatDiff(change.diff);
+
+        // [FINAL FIX] Direct DOM append, no HTML strings or fragments
+        const diffDom = this.formatDiff(change.diff);
+        contentPlaceholder.appendChild(diffDom);
+        // --- END FINAL FIX ---
 
         content.appendChild(contentPlaceholder);
         modal.appendChild(content);
