@@ -1,18 +1,18 @@
 window.Zen = window.Zen || {};
 
 window.Zen.Git = {
-    // [新增] 辅助函数：获取 Overleaf 服务端精准时间
+    // [New] Helper function: Get precise server time from Overleaf
     getProjectLastUpdated: async function(projectId) {
         try {
             console.log("[ZenOverleaf] Fetching Dashboard for meta data...");
             const response = await fetch('/project', { credentials: 'include' });
             const htmlText = await response.text();
 
-            // 1. 创建一个临时的 DOM 解析器来安全地解析 HTML
+            // 1. Create a temporary DOM parser to safely parse HTML
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlText, "text/html");
 
-            // 2. 查找包含项目数据的 meta 标签
+            // 2. Look up the meta tag containing project data
             // <meta name="ol-prefetchedProjectsBlob" ... content="{...}">
             const meta = doc.querySelector('meta[name="ol-prefetchedProjectsBlob"]');
 
@@ -21,12 +21,12 @@ window.Zen.Git = {
                 return 0;
             }
 
-            // 3. 解析 JSON 内容
+            // 3. Parse JSON content
             const jsonContent = meta.getAttribute('content');
             const data = JSON.parse(jsonContent);
 
             if (data && data.projects && Array.isArray(data.projects)) {
-                // 4. 在数组中查找当前 Project ID
+                // 4. Find the current Project ID in the array
                 const project = data.projects.find(p => p.id === projectId);
 
                 if (project && project.lastUpdated) {
@@ -83,6 +83,65 @@ window.Zen.Git = {
         closeBtn.textContent = '×';
         header.appendChild(titleSpan);
         header.appendChild(closeBtn);
+
+        // --- [New] Panel Dragging Logic ---
+        const makePanelDraggable = (el, handle) => {
+            let isDragging = false;
+            let startX, startY, initialLeft, initialTop;
+
+            handle.style.cursor = 'grab';
+
+            handle.addEventListener('mousedown', (e) => {
+                // 1. If the close button is clicked, do not trigger dragging
+                if (e.target.id === 'ol-mygit-close-btn') return;
+
+                e.preventDefault();
+                isDragging = true;
+                handle.style.cursor = 'grabbing';
+
+                startX = e.clientX;
+                startY = e.clientY;
+
+                // 2. Lock current position (Convert CSS right/bottom positioning to absolute left/top)
+                const rect = el.getBoundingClientRect();
+
+                // Force set left/top to current pixel values
+                el.style.left = `${rect.left}px`;
+                el.style.top = `${rect.top}px`;
+
+                // Clear potential other positioning constraints to prevent conflict
+                el.style.right = 'auto';
+                el.style.bottom = 'auto';
+                el.style.transform = 'none';
+                el.style.margin = '0'; // Prevent margin interference
+
+                initialLeft = rect.left;
+                initialTop = rect.top;
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            const onMouseMove = (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                el.style.left = `${initialLeft + dx}px`;
+                el.style.top = `${initialTop + dy}px`;
+            };
+
+            const onMouseUp = () => {
+                isDragging = false;
+                handle.style.cursor = 'grab';
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+        };
+
+        // Activate dragging
+        makePanelDraggable(panel, header);
+        // --- [End New] ---
+
         panel.appendChild(header);
 
         // Content
@@ -112,6 +171,18 @@ window.Zen.Git = {
         content.appendChild(createInput('Commit Message (Optional)', 'ol-mygit-commit-msg', 'Default: Platform Sync + Time'));
         content.appendChild(createInput('CORS Proxy (Optional)', 'ol-mygit-proxy', 'Default: Auto-select (Custom/Workers/Official)'));
 
+        const confirmArea = document.createElement('div');
+        confirmArea.className = 'ol-mygit-confirm-area';
+        confirmArea.id = 'ol-mygit-confirm-area';
+        confirmArea.innerHTML = `
+            <span class="ol-mygit-confirm-msg" id="ol-mygit-confirm-msg"></span>
+            <div class="ol-mygit-confirm-actions">
+                <button class="ol-confirm-btn ol-confirm-btn-no" id="ol-confirm-no">Cancel</button>
+                <button class="ol-confirm-btn ol-confirm-btn-yes" id="ol-confirm-yes">Confirm</button>
+            </div>
+        `;
+        content.appendChild(confirmArea);
+
         const autoSyncContainer = document.createElement('div');
         autoSyncContainer.style.cssText = 'display:flex; gap:10px; align-items:center; margin-bottom:10px; font-size:12px;';
         const checkboxLabel = document.createElement('label');
@@ -134,7 +205,7 @@ window.Zen.Git = {
         autoSyncContainer.appendChild(document.createTextNode(' mins'));
         content.appendChild(autoSyncContainer);
 
-        // --- [修改] Button Group (Push + Pull) ---
+        // --- [Modified] Button Group (Push + Pull) ---
         const btnGroup = document.createElement('div');
         btnGroup.style.display = 'flex'; btnGroup.style.gap = '10px'; btnGroup.style.marginBottom = '10px';
 
@@ -155,7 +226,7 @@ window.Zen.Git = {
         btnGroup.appendChild(syncBtn);
         btnGroup.appendChild(pullBtn);
         content.appendChild(btnGroup);
-        // --- [修改结束] ---
+        // --- [End Modified] ---
 
         const statusDiv = document.createElement('div');
         statusDiv.className = 'ol-mygit-status';
@@ -307,14 +378,15 @@ window.Zen.Git = {
                 const hasBranch = remoteRefs.find(r => r.ref === targetRef);
                 if (!hasBranch && remoteRefs.length > 0) {
                     const alt = branch === 'main' ? 'master' : 'main';
-                    if (remoteRefs.find(r => r.ref === `refs/heads/${alt}`) && confirm(`Branch '${branch}' not found, use '${alt}'?`)) {
+                    // [修改] 替换 confirm() 为 askUser()
+                    if (remoteRefs.find(r => r.ref === `refs/heads/${alt}`) && await window.Zen.Git.askUser(`Branch '${branch}' not found, use '${alt}'?`)) {
                         branch = alt;
                         document.getElementById('ol-mygit-branch').value = branch;
                     }
                 }
 
                 // 3. Fetch/Checkout
-                let remoteTime = 0; // [新增] 用于存储远程时间
+                let remoteTime = 0; // [New] Used to store remote time
 
                 if (hasBranch) {
                     if(!isAuto) updateStatus('Fetching...', '#007bff');
@@ -326,7 +398,7 @@ window.Zen.Git = {
                         depth: 1, singleBranch: true
                     });
 
-                    // [插入] 获取远程时间 (仅在 Fetch 成功后执行)
+                    // [Insert] Get remote time (Execute only after successful Fetch)
                     try {
                         const commits = await git.log({ fs: FS, dir: dir, ref: `origin/${branch}`, depth: 1 });
                         if (commits && commits.length > 0) remoteTime = commits[0].commit.committer.timestamp * 1000;
@@ -366,7 +438,7 @@ window.Zen.Git = {
                 const blob = await resp.blob();
                 if (blob.size < 100) throw new Error("File too small");
 
-                // [保持原样] 使用 Base64 读取逻辑
+                // [Kept as is] Use Base64 reading logic
                 const base64String = await new Promise((resolve) => {
                     const r = new FileReader();
                     r.onload = () => resolve(r.result.split(',')[1]);
@@ -374,18 +446,22 @@ window.Zen.Git = {
                 });
                 const zip = await JSZip.loadAsync(base64String, { base64: true });
 
-                // [插入] 检查是否与远程冲突 (Time Check)
+                // [修改] 检查是否与远程冲突 (Time Check)
                 if (remoteTime > 0 && !isAuto) {
                     let localTime = await window.Zen.Git.getProjectLastUpdated(projectId);
                     console.log("#######################################")
                     console.log(localTime)
                     console.log("#######################################")
-                    // 2秒缓冲：如果远程时间明显晚于本地 Overleaf 最后保存时间
+                    // 2 second buffer: if remote time is significantly later than local Overleaf last save time
                     if (localTime > 0 && remoteTime > localTime + 2000) {
                         const rDate = new Date(remoteTime).toLocaleString();
                         const lDate = new Date(localTime).toLocaleString();
-                        const msg = `⚠️ WARNING: Remote Conflict!\n\nRemote (${rDate}) is NEWER than Overleaf (${lDate}).\nOverwrite?`;
-                        if (!confirm(msg)) {
+                        const msg = `⚠️ WARNING: Remote Conflict!\n\nRemote (${rDate}) is NEWER than Overleaf (${lDate}).\n\nForce Push (Overwrite Remote)?`;
+
+                        // [关键修改] 替换 confirm()
+                        const userConfirmed = await window.Zen.Git.askUser(msg);
+
+                        if (!userConfirmed) {
                             updateStatus('Push Cancelled', 'orange');
                             try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
                             return;
@@ -461,7 +537,7 @@ window.Zen.Git = {
             } finally {
                 isSyncing = false;
                 btn.disabled = false;
-                btn.textContent = 'Sync Now';
+                btn.textContent = 'Push (Backup)';
             }
         };
 
@@ -506,5 +582,38 @@ window.Zen.Git = {
                 if(conf.interval) document.getElementById('ol-mygit-interval').value = conf.interval;
             });
         }
+    },
+
+    askUser: function(message) {
+        return new Promise((resolve) => {
+            const area = document.getElementById('ol-mygit-confirm-area');
+            const msgSpan = document.getElementById('ol-mygit-confirm-msg');
+            const btnYes = document.getElementById('ol-confirm-yes');
+            const btnNo = document.getElementById('ol-confirm-no');
+
+            // Hide the normal button group (prevents user from accidentally triggering other operations) - Optional
+            const mainBtns = document.getElementById('ol-mygit-sync-btn')?.parentNode;
+            if(mainBtns) mainBtns.style.display = 'none';
+
+            // Show confirmation box
+            msgSpan.textContent = message;
+            area.style.display = 'block';
+
+            // Clean up and rebind events
+            const cleanup = () => {
+                area.style.display = 'none';
+                if(mainBtns) mainBtns.style.display = 'flex'; // Restore normal buttons
+            };
+
+            btnYes.onclick = () => {
+                cleanup();
+                resolve(true);
+            };
+
+            btnNo.onclick = () => {
+                cleanup();
+                resolve(false);
+            };
+        });
     }
 };

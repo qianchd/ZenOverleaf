@@ -184,3 +184,295 @@ a.ide-rail-tab-link.active .ol-mygit-rail-icon-container {
 }
 .ol-diff-apply-btn:hover { background: #0056b3; }
 .ol-diff-apply-btn:disabled { background: #6c757d; cursor: not-allowed; opacity: 0.7; }
+
+
+
+#ol-single-diff-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 800px;
+    height: 600px;
+    min-width: 400px;
+    min-height: 300px;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    border-radius: 8px;
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    font-family: sans-serif;
+
+    resize: both;
+    overflow: hidden;
+}
+
+
+.zen-diff-header {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: grab;
+    flex-shrink: 0;
+}
+.zen-diff-header:active {
+    cursor: grabbing;
+}
+.zen-diff-title {
+    font-weight: bold;
+    font-size: 16px;
+    color: #333;
+}
+
+.zen-diff-badge {
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 10px;
+    color: white;
+    font-weight: bold;
+}
+.zen-badge-new { background-color: #28a745; }
+.zen-badge-mod { background-color: #ffc107; color: #333 !important; }
+.zen-badge-del { background-color: #dc3545; }
+
+.zen-diff-close {
+    cursor: pointer;
+    font-size: 24px;
+    color: #999;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.zen-diff-close:hover { color: #333; }
+
+.zen-diff-content {
+    flex: 1;
+    overflow: auto;
+    background: white;
+}
+
+.zen-diff-footer {
+    padding: 15px;
+    border-top: 1px solid #eee;
+    background: #f8f9fa;
+    text-align: right;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+}
+.zen-diff-tip {
+    font-size: 11px;
+    color: #999;
+    margin-right: auto;
+}
+.zen-btn-apply {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+.zen-btn-apply:hover { background: #218838; }
+.zen-btn-apply:disabled { background: #6c757d; cursor: not-allowed; }
+
+/* ==========================================================================
+   Diff Table Styles (Line Numbers & Code)
+   ========================================================================== */
+.zen-diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 12px;
+    table-layout: fixed;
+}
+
+.zen-col-num { width: 40px; }
+
+.zen-diff-row { line-height: 1.5; }
+.zen-diff-row td { padding: 0 5px; }
+
+.zen-diff-linenum {
+    text-align: right;
+    color: #bbb;
+    border-right: 1px solid #eee;
+    user-select: none;
+    background: #fafafa;
+}
+
+.zen-diff-code {
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    color: #24292e;
+}
+
+.zen-row-header {
+    background: #f1f8ff;
+    color: #6f42c1;
+    border-top: 1px solid #e1e4e8;
+    border-bottom: 1px solid #e1e4e8;
+}
+.zen-row-header td {
+    padding: 4px 10px;
+    text-align: left;
+    font-weight: bold;
+}
+
+.zen-row-add { background-color: #e6ffec; }
+.zen-row-del { background-color: #ffebe9; }
+.zen-row-normal { background-color: #ffffff; }
+
+/* ==========================================================================
+   File Tree Icons (Status Markers)
+   ========================================================================== */
+.zen-git-status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: white;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: bold;
+    margin-left: 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    user-select: none;
+    z-index: 100;
+    transition: transform 0.2s;
+}
+.zen-git-status-icon:hover { transform: scale(1.15); }
+
+.zen-icon-new { background-color: #28a745; }
+.zen-icon-del { background-color: #dc3545; }
+.zen-icon-mod { background-color: #ffc107; color: #333; }
+
+/* ==========================================================================
+   Toast Notification
+   ========================================================================== */
+.zen-git-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    z-index: 10002;
+    font-family: sans-serif;
+    text-align: center;
+    transition: opacity 0.5s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* ==========================================================================
+   Ghost Files (In-Tree Style) - No Overlay
+   ========================================================================== */
+
+/* 幽灵节点样式 */
+.zen-ghost-node {
+    padding: 2px 0;
+    cursor: pointer;
+    font-size: 13px;
+    color: #aaa;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px dashed rgba(0,0,0,0.05);
+    margin-left: 20px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.zen-ghost-node:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+    color: #666;
+}
+
+.zen-ghost-icon {
+    display: inline-block;
+    width: 24px;
+    text-align: center;
+    font-weight: bold;
+    color: #28a745;
+    font-style: normal;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.zen-ghost-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 10px;
+}
+
+
+
+#ol-mygit-trigger-overleaf {
+    order: 999 !important;
+}
+
+/* ==========================================================================
+   In-Panel Confirmation Box (Replaces Alert/Confirm)
+   ========================================================================== */
+.ol-mygit-confirm-area {
+    display: none;
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    animation: fadeIn 0.2s;
+}
+
+.ol-mygit-confirm-msg {
+    display: block;
+    margin-bottom: 8px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+.ol-mygit-confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.ol-confirm-btn {
+    padding: 4px 12px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.ol-confirm-btn-yes {
+    background-color: #28a745;
+    color: white;
+}
+.ol-confirm-btn-yes:hover { background-color: #218838; }
+
+.ol-confirm-btn-no {
+    background-color: #dc3545;
+    color: white;
+}
+.ol-confirm-btn-no:hover { background-color: #c82333; }

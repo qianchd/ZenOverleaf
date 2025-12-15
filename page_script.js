@@ -1,30 +1,29 @@
 /**
- * page_script.js (Simplified)
- * 运行在页面上下文中 (Main World)
+ * page_script.js
  */
 window.addEventListener("message", (event) => {
-    // 1. 安全检查
+    // 1. security checker
     if (event.source !== window || !event.data) return;
     if (event.data.source !== "zenoverleaf-content") return;
 
-    // --- 功能 A: 写入内容 (使用标准浏览器 API) ---
+    // --- A: Insert context via API ---
     if (event.data.action === "APPLY_CONTENT") {
         const newContent = event.data.content;
 
         try {
-            // 目标：新版编辑器 (.cm-content)
+            // (.cm-content)
             const cmContent = document.querySelector('.cm-content');
 
             if (cmContent) {
                 cmContent.focus();
 
-                // 1. 全选 (Select All)
+                // 1. (Select All)
                 document.execCommand('selectAll');
 
-                // 2. 尝试插入文本 (Insert Text)
+                // 2. (Insert Text)
                 const success = document.execCommand('insertText', false, newContent);
 
-                // 3. 如果插入失败，使用粘贴事件兜底 (Paste Event)
+                // 3. If failed, try Paste Event
                 if (!success) {
                     console.log("[ZenOverleaf] execCommand failed, using Paste Event.");
                     const dt = new DataTransfer();
@@ -38,9 +37,9 @@ window.addEventListener("message", (event) => {
                 }
                 console.log("[ZenOverleaf] Content applied.");
             } else {
-                // 找不到编辑器时的最后手段：复制到剪贴板
+                // Final Plan C
                 navigator.clipboard.writeText(newContent).then(() => {
-                    alert("未找到编辑器焦点，内容已复制到剪贴板。");
+                    alert("Insert failed. Copy to the clipboard. Please paste by hand.");
                 });
             }
         } catch (e) {
@@ -48,11 +47,10 @@ window.addEventListener("message", (event) => {
         }
     }
 
-    // --- 功能 B: 获取时间 (保持最简逻辑) ---
+    // --- obatin modified time ---
     if (event.data.action === "GET_PROJECT_TIME") {
         let timestamp = 0;
         try {
-            // 尝试读取全局变量
             if (window._ide && window._ide.project) {
                 timestamp = new Date(window._ide.project.lastUpdated).getTime();
             } else if (window.project) {
