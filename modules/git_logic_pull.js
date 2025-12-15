@@ -129,11 +129,17 @@ window.Zen.FileTree = {
             li.setAttribute('role', 'presentation');
             li.title = "This file is in Git but not Overleaf. Click to Copy Name.";
 
-            // Ghost files use 'M' symbol
-            li.innerHTML = `
-                <span class="zen-ghost-icon">M</span>
-                <span class="zen-ghost-name">${change.file}</span>
-            `;
+            // [FIXED] Use safe DOM methods instead of innerHTML
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'zen-ghost-icon';
+            iconSpan.textContent = 'M'; // Ghost files use 'M' symbol
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'zen-ghost-name';
+            nameSpan.textContent = change.file;
+
+            li.appendChild(iconSpan);
+            li.appendChild(nameSpan);
 
             // Click event
             li.onclick = (e) => {

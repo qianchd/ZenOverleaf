@@ -115,46 +115,76 @@ window.Zen.DiffUI = {
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'ol-single-diff-modal';
-            // [FIXED] Set lower z-index to avoid covering native Overleaf modals
+            // Set lower z-index to avoid covering native Overleaf modals
             modal.style.zIndex = '500';
             document.body.appendChild(modal);
         }
 
+        // --- START FIX: Rebuild Modal DOM using safe methods ---
+        // Clear previous content
+        modal.innerHTML = '';
         modal.style.display = 'flex';
 
-        // NOTE: New status is rendered as MOD badge in UI (M)
         const badgeClass = change.status === 'del' ? 'zen-badge-del' : 'zen-badge-mod';
 
-        // Use static structure template, replacing dynamic content with placeholders
-        modal.innerHTML = `
-            <div id="ol-diff-drag-header" class="zen-diff-header">
-                <div>
-                    <span id="diff-title" class="zen-diff-title"></span>
-                    <span id="diff-badge" class="zen-diff-badge"></span>
-                </div>
-                <span id="ol-diff-close" class="zen-diff-close">×</span>
-            </div>
+        // 1. Header (Drag Handle)
+        const header = document.createElement('div');
+        header.id = 'ol-diff-drag-header';
+        header.className = 'zen-diff-header';
 
-            <div class="zen-diff-content">
-                <div id="diff-content-placeholder"></div>
-            </div>
+        const titleGroup = document.createElement('div');
+        const titleSpan = document.createElement('span');
+        titleSpan.id = 'diff-title';
+        titleSpan.className = 'zen-diff-title';
+        titleSpan.textContent = change.file; // Dynamic content safe
 
-            <div class="zen-diff-footer">
-                <span class="zen-diff-tip">
-                    Tip: Drag header to move · Drag bottom-right to resize
-                </span>
-                <button id="ol-diff-apply" class="zen-btn-apply">Apply Changes</button>
-            </div>
-        `;
+        const badgeSpan = document.createElement('span');
+        badgeSpan.id = 'diff-badge';
+        badgeSpan.className = `zen-diff-badge ${badgeClass}`;
+        badgeSpan.textContent = change.status.toUpperCase(); // Dynamic content safe
 
-        // Safely insert dynamic content via textContent
-        document.getElementById('diff-title').textContent = change.file;
-        const badge = document.getElementById('diff-badge');
-        badge.textContent = change.status.toUpperCase();
-        badge.className = `zen-diff-badge ${badgeClass}`;
+        titleGroup.appendChild(titleSpan);
+        titleGroup.appendChild(badgeSpan);
 
-        // Insert Diff content
-        document.getElementById('diff-content-placeholder').innerHTML = this.formatDiff(change.diff);
+        const closeBtn = document.createElement('span');
+        closeBtn.id = 'ol-diff-close';
+        closeBtn.className = 'zen-diff-close';
+        closeBtn.textContent = '×';
+
+        header.appendChild(titleGroup);
+        header.appendChild(closeBtn);
+        modal.appendChild(header);
+
+        // 2. Content Area
+        const content = document.createElement('div');
+        content.className = 'zen-diff-content';
+
+        const contentPlaceholder = document.createElement('div');
+        contentPlaceholder.id = 'diff-content-placeholder';
+        // Use innerHTML here, as formatDiff ensures content is HTML-escaped.
+        contentPlaceholder.innerHTML = this.formatDiff(change.diff);
+
+        content.appendChild(contentPlaceholder);
+        modal.appendChild(content);
+
+        // 3. Footer
+        const footer = document.createElement('div');
+        footer.className = 'zen-diff-footer';
+
+        const tipSpan = document.createElement('span');
+        tipSpan.className = 'zen-diff-tip';
+        tipSpan.textContent = 'Tip: Drag header to move · Drag bottom-right to resize';
+
+        const applyBtn = document.createElement('button');
+        applyBtn.id = 'ol-diff-apply';
+        applyBtn.className = 'zen-btn-apply';
+        applyBtn.textContent = 'Apply Changes';
+
+        footer.appendChild(tipSpan);
+        footer.appendChild(applyBtn);
+        modal.appendChild(footer);
+
+        // --- END FIX: Rebuild Modal DOM ---
 
 
         document.getElementById('ol-diff-close').onclick = () => modal.style.display = 'none';
