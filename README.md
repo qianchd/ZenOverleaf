@@ -17,7 +17,7 @@ ZenOverleaf transform Overleaf and TexPage into a focused, distraction-free writ
 
 **Key Features:**
 * **Private and Reliable:** ZenOverleaf does all the computation and modification within your own computer. It does not collect any personal data and does not link to *any* other websites and IPs.
-* **Git Backup (New feature since v2.0.0):** Support one-side backup to git remote repo (github, gitee, cnb.cool, ...), with the help of [`isomorphic-git`](https://github.com/isomorphic-git/isomorphic-git), a pure JavaScript reimplementation of git.
+* **Git Backup (New feature since v2.2.0):** Support two-side (force-push and cherry-pick-pull) backup to git remote repo (github, gitee, cnb.cool, ...), with the help of [`isomorphic-git`](https://github.com/isomorphic-git/isomorphic-git), a pure JavaScript reimplementation of git.
 * **Maximize Screen Real Estate:** Perfect for laptop users or split-screen workflows where every pixel counts.
   * **Toggle UI Elements:** Individually show or hide the file tree sidebar, the top header bar, and the line-number gutter.
   * **True Fullscreen:** One-click activation of browser-level fullscreen mode for deep work sessions.
@@ -46,7 +46,7 @@ Whether you are drafting a thesis, a research paper, or a resume, ZenOverleaf he
 ### Have a look:
 
 #### Git Panel
-<img width="1259" height="839" alt="图片" src="https://github.com/user-attachments/assets/3351471b-944d-4676-a1b5-868c34a0a2e1"/>
+<img width="1259" height="839" alt="图片" src="https://github.com/user-attachments/assets/524442d3-8d21-4443-9b22-20339332fb93" />
 <img width="625" height="379" alt="图片" src="https://github.com/user-attachments/assets/e84b7ddc-81f8-4d3c-861c-bc6e447e5d44" />
 
 
