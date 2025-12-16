@@ -1,7 +1,7 @@
 window.Zen = window.Zen || {};
 
 window.Zen.Git = {
-    // [New] Helper function: Get precise server time from Overleaf
+    // Helper function: Get precise server time from Overleaf dashboard meta data
     getProjectLastUpdated: async function(projectId) {
         try {
             console.log("[ZenOverleaf] Fetching Dashboard for meta data...");
@@ -44,6 +44,64 @@ window.Zen.Git = {
             return 0;
         }
     },
+
+    // function: Get last updated time from TexPage project list API
+    getTexPageProjectLastUpdated: async function(projectId) {
+        try {
+            console.log("[ZenTexPage] Fetching Project List API for update time...");
+
+            // Use CORRECT API URL and add cache-busting timestamp
+            const timestamp = Date.now();
+            const apiUrl = `/api/project?t=${timestamp}&page=1&projectName=&sortBy=updateAt&getType=all`;
+
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                console.warn(`[ZenTexPage] API request failed with status: ${response.status}`);
+                return 0;
+            }
+
+            const apiData = await response.json();
+
+            // CORRECT PATH: apiData.result.list
+            const projects = apiData?.result?.list;
+
+            if (!projects || !Array.isArray(projects)) {
+                console.warn("[ZenTexPage] Projects list array not found at 'result.list' path.");
+                return 0;
+            }
+
+            // Find the current Project by its key/id
+            const project = projects.find(p => p.projectKey === projectId);
+
+            if (project && project.updateAt) {
+                // CORRECT FIELD: updateAt (an ISO 8601 string)
+                const date = new Date(project.updateAt);
+
+                if (isNaN(date.getTime())) {
+                     console.warn(`[ZenTexPage] Failed to parse updateAt string: ${project.updateAt}`);
+                     return 0;
+                }
+
+                console.log(`[ZenTexPage] Found Time via API: ${date.toLocaleString()}`);
+                return date.getTime();
+            }
+
+            console.warn(`[ZenTexPage] Project ${projectId} not found in API list or missing updateAt.`);
+            return 0;
+
+        } catch (e) {
+            console.error("[ZenTexPage] API Fetch Error:", e);
+            return 0;
+        }
+    },
+
 
     init: function(platform, mountPoint) {
         const linkId = `ol-mygit-trigger-${platform}`;
@@ -221,7 +279,16 @@ window.Zen.Git = {
         pullBtn.textContent = 'Pull (Diff)';
         pullBtn.style.flex = '1';
         pullBtn.style.backgroundColor = '#6f42c1'; // Purple
-        pullBtn.onclick = () => window.Zen.GitPull.perform(platform, projectId);
+
+        // fix: delay the call of call window.Zen.GitPull.perform
+        pullBtn.onclick = () => {
+            if (window.Zen.GitPull && typeof window.Zen.GitPull.perform === 'function') {
+                window.Zen.GitPull.perform(platform, projectId);
+            } else {
+                console.error("Window.Zen.GitPull not initialized. Please ensure git_logic_pull.js loaded correctly.");
+                window.Zen.Git.updateStatus("Error: Pull module not ready.", 'red');
+            }
+        };
 
         btnGroup.appendChild(syncBtn);
         btnGroup.appendChild(pullBtn);
@@ -378,7 +445,7 @@ window.Zen.Git = {
                 const hasBranch = remoteRefs.find(r => r.ref === targetRef);
                 if (!hasBranch && remoteRefs.length > 0) {
                     const alt = branch === 'main' ? 'master' : 'main';
-                    // [修改] 替换 confirm() 为 askUser()
+                    // Use askUser() instead of confirm()
                     if (remoteRefs.find(r => r.ref === `refs/heads/${alt}`) && await window.Zen.Git.askUser(`Branch '${branch}' not found, use '${alt}'?`)) {
                         branch = alt;
                         document.getElementById('ol-mygit-branch').value = branch;
@@ -386,7 +453,7 @@ window.Zen.Git = {
                 }
 
                 // 3. Fetch/Checkout
-                let remoteTime = 0; // [New] Used to store remote time
+                let remoteTime = 0; // Used to store remote time
 
                 if (hasBranch) {
                     if(!isAuto) updateStatus('Fetching...', '#007bff');
@@ -398,7 +465,7 @@ window.Zen.Git = {
                         depth: 1, singleBranch: true
                     });
 
-                    // [Insert] Get remote time (Execute only after successful Fetch)
+                    // Get remote time (Execute only after successful Fetch)
                     try {
                         const commits = await git.log({ fs: FS, dir: dir, ref: `origin/${branch}`, depth: 1 });
                         if (commits && commits.length > 0) remoteTime = commits[0].commit.committer.timestamp * 1000;
@@ -438,7 +505,7 @@ window.Zen.Git = {
                 const blob = await resp.blob();
                 if (blob.size < 100) throw new Error("File too small");
 
-                // [Kept as is] Use Base64 reading logic
+                // Use Base64 reading logic
                 const base64String = await new Promise((resolve) => {
                     const r = new FileReader();
                     r.onload = () => resolve(r.result.split(',')[1]);
@@ -446,26 +513,42 @@ window.Zen.Git = {
                 });
                 const zip = await JSZip.loadAsync(base64String, { base64: true });
 
-                // [修改] 检查是否与远程冲突 (Time Check)
+                // Check for remote conflict (Time Check)
                 if (remoteTime > 0 && !isAuto) {
-                    let localTime = await window.Zen.Git.getProjectLastUpdated(projectId);
-                    console.log("#######################################")
-                    console.log(localTime)
-                    console.log("#######################################")
-                    // 2 second buffer: if remote time is significantly later than local Overleaf last save time
-                    if (localTime > 0 && remoteTime > localTime + 2000) {
-                        const rDate = new Date(remoteTime).toLocaleString();
-                        const lDate = new Date(localTime).toLocaleString();
-                        const msg = `⚠️ WARNING: Remote Conflict!\n\nRemote (${rDate}) is NEWER than Overleaf (${lDate}).\n\nForce Push (Overwrite Remote)?`;
 
-                        // [关键修改] 替换 confirm()
-                        const userConfirmed = await window.Zen.Git.askUser(msg);
+                    let localTime = 0;
 
-                        if (!userConfirmed) {
-                            updateStatus('Push Cancelled', 'orange');
-                            try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
-                            return;
+                    // --- Get Local Time Based on Platform ---
+                    if (platform === 'overleaf') {
+                        localTime = await window.Zen.Git.getProjectLastUpdated(projectId);
+                    } else if (platform === 'texpage') {
+                        // Use the new TexPage specific helper function
+                        localTime = await window.Zen.Git.getTexPageProjectLastUpdated(projectId);
+                    }
+                    // --- End Get Local Time ---
+
+                    if (localTime > 0) {
+                        console.log("#######################################")
+                        console.log(`Local Time: ${localTime}`);
+                        console.log("#######################################")
+
+                        // 2 second buffer: if remote time is significantly later than local last save time
+                        if (remoteTime > localTime + 2000) {
+                            const rDate = new Date(remoteTime).toLocaleString();
+                            const lDate = new Date(localTime).toLocaleString();
+                            const msg = `⚠️ WARNING: Remote Conflict!\n\nRemote (${rDate}) is NEWER than Local (${lDate}).\n\nForce Push (Overwrite Remote)?`;
+
+                            // Use askUser() instead of confirm()
+                            const userConfirmed = await window.Zen.Git.askUser(msg);
+
+                            if (!userConfirmed) {
+                                updateStatus('Push Cancelled', 'orange');
+                                try { window.indexedDB.deleteDatabase(DB_NAME); } catch(e){}
+                                return;
+                            }
                         }
+                    } else {
+                         console.log("[ZenOverleaf] Local time not available for conflict check, proceeding with push.");
                     }
                 }
 

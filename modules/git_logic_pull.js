@@ -7,29 +7,20 @@ window.Zen.FileTree = {
     currentChanges: [],
     observer: null,
     FS: null,
-    _renderTimer: null, // Debounce timer
+    _renderTimer: null,
 
     // Entry point: Render markers
     renderMarkers: function(changes, FS) {
         this.currentChanges = changes;
         this.FS = FS;
-        console.log("[ZenOverleaf] FileTree: Rendering markers...", changes.map(c => c.file));
-
-        // 1. Initial render
         this.refreshAll();
-
-        // 2. Start listener
         this.startObserver();
     },
 
     // Unified refresh logic
     refreshAll: function() {
         const matchedFiles = new Set();
-
-        // 1. Render regular icons (mark existing files)
         this.applyMarkers(matchedFiles);
-
-        // 2. Render ghost files (only render new files that were not matched)
         const ghostFiles = this.currentChanges.filter(c => !matchedFiles.has(c.file) && c.status === 'new');
         this.renderGhosts(ghostFiles);
     },
@@ -43,28 +34,22 @@ window.Zen.FileTree = {
         document.querySelectorAll('.zen-ghost-node').forEach(el => el.remove());
     },
 
+    // Mutation Observer
     startObserver: function() {
         if (this.observer) this.observer.disconnect();
 
-        // Listen to file tree container
         const listRoot = document.querySelector('.file-tree-folder-list-inner') ||
                          document.querySelector('.file-tree-list') ||
-                         document.querySelector('.file-tree-inner');
+                         document.querySelector('.file-tree-inner') ||
+                         document.querySelector('.project-directory > ul[role="list"]');
 
         if (!listRoot) return;
 
         this.observer = new MutationObserver((mutations) => {
-            // Filter out our own changes to prevent infinite loop
             if (this._renderTimer) clearTimeout(this._renderTimer);
-
             this._renderTimer = setTimeout(() => {
-                // 1. Pause listening (critical step)
                 this.observer.disconnect();
-
-                // 2. Execute rendering
                 this.refreshAll();
-
-                // 3. Resume listening
                 this.observer.observe(listRoot, { childList: true, subtree: true });
             }, 100);
         });
@@ -72,26 +57,24 @@ window.Zen.FileTree = {
         this.observer.observe(listRoot, { childList: true, subtree: true });
     },
 
+    // Marker Application
     applyMarkers: function(matchedSet = new Set()) {
         if (!this.currentChanges || this.currentChanges.length === 0) return;
 
-        const items = document.querySelectorAll('li[role="treeitem"]');
+        const items = document.querySelectorAll('li[role="treeitem"], li[role="listitem"]');
 
         items.forEach(item => {
             try {
-                const fileName = item.getAttribute('aria-label');
+                const fileName = item.querySelector('.file-name > span[title]')?.title || item.getAttribute('aria-label');
                 if (!fileName) return;
 
                 const match = this.currentChanges.find(c => c.file === fileName || c.file.endsWith('/' + fileName));
 
                 if (match) {
                     const existingIcon = item.querySelector('.zen-git-status-icon');
-
-                    // Unified symbol: New and Modified files both use 'M'
                     const targetSymbol = (match.status === 'del' ? '−' : 'M');
 
                     if (existingIcon) {
-                        // If icon exists and status is the same, mark as processed and skip (performance optimization)
                         if (existingIcon.textContent === targetSymbol) {
                             matchedSet.add(match.file);
                             return;
@@ -103,53 +86,46 @@ window.Zen.FileTree = {
                     matchedSet.add(match.file);
                 }
             } catch (e) {
-                console.warn("[ZenOverleaf] Error processing item:", item, e);
+                // Ignore
             }
         });
     },
 
-    // Ghost rendering directly into the file tree
+    // Ghost rendering
     renderGhosts: function(ghostFiles) {
-        // 1. Clear old ghost nodes
         document.querySelectorAll('.zen-ghost-node').forEach(el => el.remove());
-
         if (ghostFiles.length === 0) return;
 
-        // 2. Find file list container (ul)
         const listContainer = document.querySelector('.file-tree-list') ||
-                              document.querySelector('.file-tree-folder-list-inner');
-
+                              document.querySelector('.file-tree-folder-list-inner') ||
+                              document.querySelector('.project-directory > ul[role="list"]');
         if (!listContainer) return;
 
-        // 3. Create and insert nodes
-        // We iterate in reverse so that when using prepend, the final order is correct
         [...ghostFiles].reverse().forEach(change => {
             const li = document.createElement('li');
             li.className = 'zen-ghost-node';
             li.setAttribute('role', 'presentation');
             li.title = "This file is in Git but not Overleaf. Click to Copy Name.";
+            li.style.cssText = "padding-left: 24px; cursor: pointer; display: flex; align-items: center;";
 
-            // [FIXED] Use safe DOM methods instead of innerHTML
             const iconSpan = document.createElement('span');
             iconSpan.className = 'zen-ghost-icon';
-            iconSpan.textContent = 'M'; // Ghost files use 'M' symbol
+            iconSpan.textContent = 'M';
+            iconSpan.style.cssText = "margin-right: 5px; color: #28a745; font-weight: bold;";
 
             const nameSpan = document.createElement('span');
             nameSpan.className = 'zen-ghost-name';
             nameSpan.textContent = change.file;
+            nameSpan.style.color = "#888";
 
             li.appendChild(iconSpan);
             li.appendChild(nameSpan);
 
-            // Click event
             li.onclick = (e) => {
                 e.stopPropagation();
-
                 navigator.clipboard.writeText(change.file);
-
                 if (window.Zen.DiffUI && window.Zen.DiffUI.showSingleFileDiff) {
                     window.Zen.DiffUI.showSingleFileDiff(change, this.FS);
-
                     const toast = document.createElement('div');
                     toast.className = 'zen-git-toast';
                     toast.innerText = `Copied: '${change.file}'. Create it, then Apply.`;
@@ -157,8 +133,6 @@ window.Zen.FileTree = {
                     setTimeout(() => toast.remove(), 4000);
                 }
             };
-
-            // Insert at the very beginning of the list
             listContainer.prepend(li);
         });
     },
@@ -166,16 +140,33 @@ window.Zen.FileTree = {
     removeChange: function(fileName) {
         this.currentChanges = this.currentChanges.filter(c => c.file !== fileName);
 
+        const items = document.querySelectorAll('li[role="treeitem"], li[role="listitem"]');
+        items.forEach(item => {
+             const currentFileName = item.querySelector('.file-name > span[title]')?.title || item.getAttribute('aria-label');
+             if (currentFileName === fileName) {
+                 item.querySelector('.zen-git-status-icon')?.remove();
+             }
+        });
+
+        document.querySelectorAll('.zen-ghost-node').forEach(el => {
+            if (el.querySelector('.zen-ghost-name')?.textContent === fileName) el.remove();
+        });
+
         if (this._renderTimer) clearTimeout(this._renderTimer);
-        this._renderTimer = setTimeout(() => {
-             this.refreshAll();
-        }, 50);
+        this._renderTimer = setTimeout(() => { this.refreshAll(); }, 50);
     },
 
     injectIcon: function(domItem, change) {
-        const targetContainer = domItem.querySelector('.file-tree-entity-details') || domItem.querySelector('.entity-name');
-        if (targetContainer) {
-            this._createAndAppend(targetContainer, change, domItem);
+        const tpSpan = domItem.querySelector('.file-name > span[title]');
+
+        const olSpan = domItem.querySelector('.item-name-button');
+
+        const target = tpSpan || olSpan;
+
+        if (target) {
+            this._createAndAppend(target, change, domItem);
+        } else {
+            this._createAndAppend(domItem, change, domItem);
         }
     },
 
@@ -183,12 +174,10 @@ window.Zen.FileTree = {
         const btn = document.createElement('span');
         btn.className = 'zen-git-status-icon';
 
-        // Unified symbols for new/mod files
         if (change.status === 'del') {
             btn.classList.add('zen-icon-del');
-            btn.textContent = '−'; // Deletions still use the minus sign
+            btn.textContent = '−';
         } else {
-            // New files and Modified files both use MOD style and 'M' symbol
             btn.classList.add('zen-icon-mod');
             btn.textContent = 'M';
         }
@@ -198,7 +187,12 @@ window.Zen.FileTree = {
         btn.onclick = (e) => {
             e.stopPropagation();
             e.preventDefault();
-            domItem.click();
+
+            // [Retained] Smart search for click target: TexPage clicks .file-name, Overleaf clicks .name or domItem
+            const targetToClick = domItem.querySelector('.file-name') || domItem;
+
+            if (targetToClick) targetToClick.click();
+
             setTimeout(() => {
                 if (window.Zen.DiffUI && window.Zen.DiffUI.showSingleFileDiff) {
                     window.Zen.DiffUI.showSingleFileDiff(change, this.FS);
@@ -212,7 +206,6 @@ window.Zen.FileTree = {
     }
 };
 
-
 /* ==========================================================================
    PART 2: Git Pull Logic (Standard)
    ========================================================================== */
@@ -220,6 +213,8 @@ window.Zen.FileTree = {
     window.Zen.GitPull = {
         perform: async (platform, projectId) => {
             const updateStatus = window.Zen.Git.updateStatus || console.log;
+
+            window.Zen.isTexPage = (platform === 'texpage');
 
             const repo = document.getElementById('ol-mygit-repo').value.trim();
             const branch = document.getElementById('ol-mygit-branch').value.trim();
@@ -287,14 +282,37 @@ window.Zen.FileTree = {
                     dlUrl = `https://www.overleaf.com/project/${projectId}/download/zip?_t=${timestamp}`;
                 } else {
                     const match = window.location.pathname.match(/\/([0-9a-fA-F-]{36})\/([0-9a-fA-F-]{36})/);
-                    dlUrl = `https://www.texpage.com/api/project/download?projectKey=${match[1]}&versionNo=${match[2]}&bbl=false&_t=${timestamp}`;
+
+                    let pKey, vNo;
+                    if (match) {
+                        pKey = match[1];
+                        vNo = match[2];
+                    } else {
+                        // Fallback: Extract from HTML
+                        const html = document.documentElement.innerHTML;
+                        const pMatch = html.match(/"projectKey"\s*:\s*"([0-9a-fA-F-]+)"/);
+                        const vMatch = html.match(/"versionNo"\s*:\s*"([0-9a-fA-F-]+)"/);
+                        if (pMatch) pKey = pMatch[1];
+                        if (vMatch) vNo = vMatch[1];
+                    }
+
+                    if (!pKey || !vNo) {
+                        throw new Error("TexPage ID extraction failed.");
+                    }
+
+                    dlUrl = `https://www.texpage.com/api/project/download?projectKey=${pKey}&versionNo=${vNo}&bbl=false`;
                 }
 
                 if (!dlUrl) throw new Error("Cannot determine download URL");
 
-                const resp = await fetch(dlUrl, { credentials: 'include' });
+                const resp = await fetch(dlUrl, { method: 'GET', credentials: 'include' });
                 if(!resp.ok) throw new Error("Download failed");
                 const blob = await resp.blob();
+
+                if (blob.size < 100) {
+                     updateStatus('Download failed: File is too small', 'red');
+                     throw new Error("Downloaded file size is suspiciously small. Not a valid ZIP.");
+                }
 
                 const base64String = await new Promise((resolve) => {
                     const r = new FileReader();
@@ -304,8 +322,16 @@ window.Zen.FileTree = {
                 const zip = await JSZip.loadAsync(base64String, { base64: true });
 
                 let localTime = 0;
-                if (window.Zen.Git && window.Zen.Git.getProjectLastUpdated) {
-                    localTime = await window.Zen.Git.getProjectLastUpdated(projectId);
+
+                // --- Pull Conflict Check ---
+                if (platform === 'overleaf') {
+                    if (window.Zen.Git && window.Zen.Git.getProjectLastUpdated) {
+                        localTime = await window.Zen.Git.getProjectLastUpdated(projectId);
+                    }
+                } else if (platform === 'texpage') {
+                    if (window.Zen.Git && window.Zen.Git.getTexPageProjectLastUpdated) {
+                        localTime = await window.Zen.Git.getTexPageProjectLastUpdated(projectId);
+                    }
                 }
 
                 if (localTime > 0 && localTime > remoteTime + 2000) {
@@ -323,6 +349,7 @@ window.Zen.FileTree = {
                         updateStatus('Resuming...', '#007bff');
                     }
                 }
+                // --- End Pull Conflict Check ---
 
                 for (const filename of Object.keys(zip.files)) {
                     if (!zip.files[filename].dir) {
@@ -370,7 +397,6 @@ window.Zen.FileTree = {
                 const toast = document.createElement('div');
                 toast.className = 'zen-git-toast';
 
-                // Safely insert dynamic content
                 const boldDiv = document.createElement('div');
                 boldDiv.style.fontWeight = 'bold';
                 boldDiv.textContent = `Git Sync: ${changes.length} Changes`;
