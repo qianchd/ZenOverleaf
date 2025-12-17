@@ -1,13 +1,13 @@
 <div align="center">
 
-## ✍️ ZenOverleaf: Switching to Zenmode on Overleaf and Texpage with Git Sync.
+### ✍️ ZenOverleaf: Switching to Zenmode on Overleaf and Texpage with Git Sync.
 
 </div>
 
 <div align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="icon.png">
-  <img src="icon.png" alt="ZenOverleaf Logo" width="300">
+  <img src="icon.png" alt="ZenOverleaf Logo" width="150">
 </picture>
 </div>
 
