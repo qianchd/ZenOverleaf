@@ -32,16 +32,17 @@ Whether you are drafting a thesis, a research paper, or a resume, ZenOverleaf he
 - Install the [tampermonkey](https://tampermonkey.net) extension in the Chromium-based or Firefox browser. The [kiwi browser](https://kiwibrowser.com/) is recommended for iPad and Android tablets.
 - Copy the js script in the tampermonkey folder to the tampermonkey extension.
 
-#### Chromium Extension
+#### Chrome/Edge/Chromium Extension
 
 - Download the crx file in the [release page](https://github.com/qianchd/ZenOverleaf/releases/latest).
-- It takes 5$ to become a developer for chrome extension. So the chrome-store version is temporarily unavailable.
+- Drag the crx file into your browser.
+- *The official chrome-store version is temporarily unavailable.*
 
 #### Firefox-based browsers
 
 - Give it a try: [Zen browser](https://zen-browser.app/)
 - Install the add-on from [Firefox's official site for ZenOverleaf](https://addons.mozilla.org/en-US/firefox/addon/zenoverleaf/)
-- The source code pass the code review from Firefox. Therefore feel free to install it.
+- The source code pass the code review from Firefox. Feel free to install it.
 
 ### Have a look:
 
